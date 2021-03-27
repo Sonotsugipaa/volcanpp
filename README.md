@@ -42,14 +42,24 @@ The header should be located in `include/`.
 
 ## Header only library (GLM)
 
-GLM can be found [here](https://github.com/g-truc/glm).
+GLM can be found [here](https://github.com/g-truc/glm).  
+As a reference, if the library is set correctly, the file `include/glm/glm.hpp`
+(among others) exists.
 
 ---
 
 ## Other libraries
 
+These libraries cannot simply be copied in `include/`, so they must be included
+in the project directory (or installed on the system) according to how each one
+expects to be.  
+In times of doubt, compiler errors will help; missing headers will most
+likely be mentioned by the compiler, static and dynamic libraries are all
+to be placed in `lib/`, and executables belong in `bin/`.
+
 - GLFW3
-- Vulkan SDK (including the C++ bindings)
+- Vulkan SDK (Vulkan headers and loader)
+- shaderc (for `glslc`, the GLSL-to-SPV compiler)
 - libconfig++
 
 
