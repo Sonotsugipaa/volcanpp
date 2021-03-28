@@ -129,7 +129,6 @@ void main_0() {
 // Light diffusion
 void main_1() {
 	float diffusion = computeDiffusion(frg_lightdir_tan);
-	diffusion *= unnormalize(modelUbo.minDiffuse, modelUbo.maxDiffuse, diffusion);
 
 	out_col =
 		texture(tex_dfs_sampler, frg_tex)
@@ -142,7 +141,6 @@ void main_1() {
 // Cel shading, diffuse lighting
 void main_2() {
 	float diffusion = computeDiffusion(frg_lightdir_tan);
-	diffusion *= unnormalize(modelUbo.minDiffuse, modelUbo.maxDiffuse, diffusion);
 
 	out_col =
 		texture(tex_dfs_sampler, frg_tex)
