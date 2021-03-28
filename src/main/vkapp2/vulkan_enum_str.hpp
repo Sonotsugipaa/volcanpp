@@ -56,6 +56,20 @@ namespace util {
 	}
 
 
+	MK_SPEC_PROTO(vk::SampleCountFlagBits) {
+		switch(e) {
+			MK_CASE(vk::SampleCountFlagBits::e1,  SAMPLE_COUNT_1);
+			MK_CASE(vk::SampleCountFlagBits::e2,  SAMPLE_COUNT_2);
+			MK_CASE(vk::SampleCountFlagBits::e4,  SAMPLE_COUNT_4);
+			MK_CASE(vk::SampleCountFlagBits::e8,  SAMPLE_COUNT_8);
+			MK_CASE(vk::SampleCountFlagBits::e16, SAMPLE_COUNT_16);
+			MK_CASE(vk::SampleCountFlagBits::e32, SAMPLE_COUNT_32);
+			MK_CASE(vk::SampleCountFlagBits::e64, SAMPLE_COUNT_64);
+		}
+		return UNKNOWN_ENUM;
+	}
+
+
 	MK_SPEC_PROTO(VkPresentModeKHR) {
 		return enum_str(vk::PresentModeKHR(e));
 	}

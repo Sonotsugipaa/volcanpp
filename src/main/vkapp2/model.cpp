@@ -188,7 +188,7 @@ namespace {
 			};
 			auto getTriVtx = [&](tinyobj::index_t* indicesTri) {
 				std::array<Vertex, 3> r;
-				glm::vec3 tanu, tanv;
+				glm::vec3 tanu;
 				for(unsigned i=0; auto& vtx : r) {
 					// Position and UV are needed beforehand, normals are already provided by the obj data
 					getVtxPosNrmTex(indicesTri[i++], vtx);

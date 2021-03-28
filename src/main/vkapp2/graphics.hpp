@@ -336,8 +336,9 @@ namespace vka2 {
 		friend Pipeline;
 	public:
 		struct ImageData {
-			ImageAlloc renderTarget;
+			ImageAlloc renderTarget, resolveTarget;
 			vk::ImageView renderTargetView;
+			vk::ImageView resolveTargetView;
 			vk::Framebuffer framebuffer;
 			vk::CommandPool cmdPool;
 			std::array<vk::CommandBuffer, 2> cmdBuffer; // [0] Render pass, [1] blit to present

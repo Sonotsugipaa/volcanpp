@@ -37,6 +37,7 @@ namespace vka2 {
 
 	struct Runtime {
 		vk::Format depthOptimalFmt = vk::Format::eD32Sfloat;
+		vk::SampleCountFlagBits bestSampleCount = vk::SampleCountFlagBits::e1;
 		unsigned samplerAnisotropy = 1;
 	};
 

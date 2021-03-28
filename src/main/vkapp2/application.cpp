@@ -364,6 +364,24 @@ namespace {
 		vk::PhysicalDeviceProperties pDevProps = pDev.getProperties();
 		runtimePtr->depthOptimalFmt = select_depthstencil_format(pDev, false);
 		runtimePtr->samplerAnisotropy = pDevProps.limits.maxSamplerAnisotropy;
+		{
+			auto supportedSamples =
+				pDevProps.limits.framebufferColorSampleCounts &
+				pDevProps.limits.framebufferDepthSampleCounts;
+			#define TRY_SAMPLES(_E) if(supportedSamples & vk::SampleCountFlagBits::_E) \
+				runtimePtr->bestSampleCount = vk::SampleCountFlagBits::_E
+			// --
+			TRY_SAMPLES(e64); else
+			TRY_SAMPLES(e32); else
+			TRY_SAMPLES(e16); else
+			TRY_SAMPLES(e8); else
+			TRY_SAMPLES(e4); else
+			TRY_SAMPLES(e2); else
+			runtimePtr->bestSampleCount = vk::SampleCountFlagBits::e1;
+			#undef TRY_SAMPLES
+			util::logVkDebug() << "Best upported sample count is "
+				<< util::enum_str(runtimePtr->bestSampleCount) << util::endl;
+		}
 	}
 
 }

@@ -339,16 +339,18 @@ namespace {
 		Pipeline* dstOutlinePl = &dst.outlinePipeline;
 		auto* dstObjects = &dst.objects;
 		const auto* dstShaders = &dst.shaders;
+		auto sampleCount = app.runtime().bestSampleCount;
 
 		std::function buildPipelines = [
-				dstRpass, dstMainPl, dstOutlinePl, dstShaders
+				dstRpass, dstMainPl, dstOutlinePl, dstShaders,
+				sampleCount
 		] () {
 			*dstMainPl = Pipeline(*dstRpass,
 				dstShaders->mainVtx, dstShaders->mainFrg, "main", 0,
-				false, dstRpass->renderExtent(),vk::SampleCountFlagBits::e1);
+				false, dstRpass->renderExtent(), sampleCount);
 			*dstOutlinePl = Pipeline(*dstRpass,
 				dstShaders->outlineVtx, dstShaders->outlineFrg, "main", 1,
-				true, dstRpass->renderExtent(), vk::SampleCountFlagBits::e1);
+				true, dstRpass->renderExtent(), sampleCount);
 		};
 
 		RenderPass::SwapchainOutdatedCallback onSwpchnOod = [

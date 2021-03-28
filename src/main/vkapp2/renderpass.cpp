@@ -100,34 +100,23 @@ namespace {
 
 
 	ImageAlloc mk_depthstencil_img(
-			VmaAllocator alloc,
+			AbstractSwapchain& asc,
 			const Runtime& runtime, const vk::Extent2D& ext
 	) {
-		ImageAlloc r;
-		VmaAllocationCreateInfo acInfo = { };
 		vk::ImageCreateInfo icInfo;
 		assert(icInfo.initialLayout == vk::ImageLayout::eUndefined);
 		icInfo.imageType = vk::ImageType::e2D;
 		icInfo.extent = vk::Extent3D(ext, 1);
 		icInfo.mipLevels = 1;
-		icInfo.samples = vk::SampleCountFlagBits::e1;
+		icInfo.samples = runtime.bestSampleCount;
 		icInfo.format = runtime.depthOptimalFmt;
 		icInfo.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment;
 		icInfo.tiling = IMAGE_TILING;
 		icInfo.arrayLayers = 1;
 		icInfo.sharingMode = vk::SharingMode::eExclusive;
 		icInfo.initialLayout = vk::ImageLayout::eUndefined;
-		VkImageCreateInfo& icInfoRef = icInfo;
-		VkImage cImgHandle;
-		acInfo.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-		VkResult result = vmaCreateImage(alloc,
-			&icInfoRef, &acInfo, &cImgHandle, &r.alloc, nullptr);
-		if(result != VK_SUCCESS) {
-			throw std::runtime_error(formatVkErrorMsg(
-				"failed to create a depth/stencil image", util::enum_str(result)));
-		}
-		r.handle = cImgHandle;
-		return r;
+		return asc.application->createImage(icInfo,
+			vk::MemoryPropertyFlagBits::eDeviceLocal);
 	}
 
 
@@ -157,8 +146,8 @@ namespace {
 		vk::ImageLayout depthLayout = useStencil?
 			vk::ImageLayout::eDepthAttachmentOptimal :
 			vk::ImageLayout::eDepthStencilAttachmentOptimal;
-		std::array<vk::AttachmentDescription, 2> attachments;
-		std::array<vk::AttachmentReference, 2> attachmentRefs;
+		std::array<vk::AttachmentDescription, 3> attachments;
+		std::array<vk::AttachmentReference, 3> attachmentRefs;
 		vk::RenderPassCreateInfo rpcInfo;
 		std::array<vk::SubpassDescription, 2> subpassDesc;
 		vk::SubpassDependency subpassDep;
@@ -166,20 +155,28 @@ namespace {
 		attachmentRefs[0] = vk::AttachmentReference(0, vk::ImageLayout::eColorAttachmentOptimal);
 		attachments[0] = vk::AttachmentDescription({ },
 			colorFormat, sampleCount,
-			vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
+			vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
 			vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
 			vk::ImageLayout::eUndefined, colorLayout);
 		attachmentRefs[1] = vk::AttachmentReference(1, vk::ImageLayout::eDepthStencilAttachmentOptimal);
 		attachments[1] = vk::AttachmentDescription({ },
 			depthFormat, sampleCount,
-			vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
+			vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
 			vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
 			vk::ImageLayout::eUndefined, depthLayout);
+		attachmentRefs[2] = vk::AttachmentReference(2, vk::ImageLayout::eColorAttachmentOptimal);
+		attachments[2] = vk::AttachmentDescription({ },
+			colorFormat, vk::SampleCountFlagBits::e1,
+			vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eStore,
+			vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
+			vk::ImageLayout::eUndefined, colorLayout);
 		subpassDesc[0].setColorAttachments(attachmentRefs[0]);
 		subpassDesc[0].setPDepthStencilAttachment(&attachmentRefs[1]);
+		subpassDesc[0].setPResolveAttachments(&attachmentRefs[2]);
 		subpassDesc[0].pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
 		subpassDesc[1].setColorAttachments(attachmentRefs[0]);
 		subpassDesc[1].setPDepthStencilAttachment(&attachmentRefs[1]);
+		subpassDesc[1].setPResolveAttachments(&attachmentRefs[2]);
 		subpassDesc[1].pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
 		subpassDep.srcSubpass = 0;
 		subpassDep.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
@@ -271,29 +268,40 @@ namespace {
 
 
 	ImageAlloc mk_render_target_img(AbstractSwapchain& asc, vk::Extent2D extent) {
-		VkImageCreateInfo icInfo = { };
-		VmaAllocationCreateInfo acInfo = { };
-		VkImage imgC;
-		VmaAllocation allocC;
-		icInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		vk::ImageCreateInfo icInfo;
 		icInfo.arrayLayers = 1;
-		icInfo.extent = { extent.width, extent.height, 1 };
-		icInfo.format = VkFormat(asc.application->surfaceFormat().format);
-		icInfo.imageType = VK_IMAGE_TYPE_2D;
-		icInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		icInfo.extent = vk::Extent3D(extent.width, extent.height, 1);
+		icInfo.format = asc.application->surfaceFormat().format;
+		icInfo.imageType = vk::ImageType::e2D;
+		icInfo.initialLayout = vk::ImageLayout::eUndefined;
 		icInfo.mipLevels = 1;
-		icInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-		icInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		icInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		icInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-		acInfo.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-		VkResult result = vmaCreateImage(asc.application->allocator(), &icInfo, &acInfo,
-			&imgC, &allocC, nullptr);
-		if(result != VK_SUCCESS) {
-			throw std::runtime_error(formatVkErrorMsg(
-				"failed to create a render target image", util::enum_str(result)));
-		}
-		return { imgC, allocC };
+		icInfo.samples = asc.application->runtime().bestSampleCount;
+		icInfo.sharingMode = vk::SharingMode::eExclusive;
+		icInfo.tiling = vk::ImageTiling::eOptimal;
+		icInfo.usage =
+			vk::ImageUsageFlagBits::eTransferSrc |
+			vk::ImageUsageFlagBits::eColorAttachment;
+		return asc.application->createImage(icInfo,
+			vk::MemoryPropertyFlagBits::eDeviceLocal);
+	}
+
+	ImageAlloc mk_resolve_target_img(AbstractSwapchain& asc, vk::Extent2D extent) {
+		vk::ImageCreateInfo icInfo;
+		icInfo.arrayLayers = 1;
+		icInfo.extent = vk::Extent3D(extent.width, extent.height, 1);
+		icInfo.format = asc.application->surfaceFormat().format;
+		icInfo.imageType = vk::ImageType::e2D;
+		icInfo.initialLayout = vk::ImageLayout::eUndefined;
+		icInfo.mipLevels = 1;
+		icInfo.samples = vk::SampleCountFlagBits::e1;
+		icInfo.sharingMode = vk::SharingMode::eExclusive;
+		icInfo.tiling = vk::ImageTiling::eOptimal;
+		icInfo.usage =
+			vk::ImageUsageFlagBits::eTransferSrc |
+			vk::ImageUsageFlagBits::eTransferDst |
+			vk::ImageUsageFlagBits::eColorAttachment;
+		return asc.application->createImage(icInfo,
+			vk::MemoryPropertyFlagBits::eDeviceLocal);
 	}
 
 
@@ -388,6 +396,7 @@ namespace {
 				r.staticUboWrCounter = 0; // Set the state tracker to the initial state: the static UBO copied *always* has to be "updated" here
 			} { // Create the render target
 				r.renderTarget = mk_render_target_img(asc, renderExtent);  util::alloc_tracker.alloc("RenderPass:ImageData:renderTarget");
+				r.resolveTarget = mk_resolve_target_img(asc, renderExtent);  util::alloc_tracker.alloc("RenderPass:ImageData:resolveTarget");
 				vk::ImageViewCreateInfo ivcInfo;
 				vk::ImageSubresourceRange subresRange;
 				subresRange.aspectMask = vk::ImageAspectFlagBits::eColor;
@@ -398,10 +407,13 @@ namespace {
 				ivcInfo.subresourceRange = subresRange;
 				ivcInfo.viewType = vk::ImageViewType::e2D;
 				r.renderTargetView = asc.application->device().createImageView(ivcInfo);  util::alloc_tracker.alloc("RenderPass:ImageData:renderTargetView");
+				ivcInfo.image = r.resolveTarget.handle;
+				subresRange.aspectMask = vk::ImageAspectFlagBits::eColor;
+				r.resolveTargetView = asc.application->device().createImageView(ivcInfo);  util::alloc_tracker.alloc("RenderPass:ImageData:resolveTargetView");
 			} { // Create the framebuffer
 				vk::FramebufferCreateInfo fbcInfo;
-				std::array<vk::ImageView, 2> attachmentViews = {
-					r.renderTargetView, depthStencilImgView };
+				std::array<vk::ImageView, 3> attachmentViews = {
+					r.renderTargetView, depthStencilImgView, r.resolveTargetView };
 				fbcInfo.layers = 1;
 				fbcInfo.renderPass = rpass;
 				fbcInfo.width = renderExtent.width;
@@ -446,8 +458,9 @@ namespace {
 		) {
 			auto dev = asc.application->device();
 			dev.destroyImageView(imgData.renderTargetView);  util::alloc_tracker.dealloc("RenderPass:ImageData:renderTargetView");
-			vmaDestroyImage(asc.application->allocator(),
-				imgData.renderTarget.handle, imgData.renderTarget.alloc);  util::alloc_tracker.dealloc("RenderPass:ImageData:renderTarget");
+			dev.destroyImageView(imgData.resolveTargetView);  util::alloc_tracker.dealloc("RenderPass:ImageData:resolveTargetView");
+			asc.application->destroyImage(imgData.renderTarget);  util::alloc_tracker.dealloc("RenderPass:ImageData:renderTarget");
+			asc.application->destroyImage(imgData.resolveTarget);  util::alloc_tracker.dealloc("RenderPass:ImageData:resolveTarget");
 			{
 				dev.destroyFence(imgData.fenceImgAvailable);
 				dev.destroyFence(imgData.fenceStaticUboUpToDate);
@@ -537,7 +550,7 @@ namespace vka2 {
 		_swapchain = &asc;
 		dev.waitIdle();
 		{ // Create depth/stencil image
-			_data.depthStencilImg = mk_depthstencil_img(_swapchain->application->allocator(),
+			_data.depthStencilImg = mk_depthstencil_img(*_swapchain,
 				_swapchain->application->runtime(), _data.renderExtent);  util::alloc_tracker.alloc("RenderPass:_data:depthStencilImg");
 			_data.depthStencilImgView = mk_depthstencil_img_view(
 				*_swapchain, _data.depthStencilImg.handle, false);  util::alloc_tracker.alloc("RenderPass:_data:depthStencilImgView");
@@ -549,7 +562,7 @@ namespace vka2 {
 		_data.handle = mk_render_pass(asc,
 			asc.application->surfaceFormat().format,
 			asc.application->runtime().depthOptimalFmt, vk::ImageLayout::eTransferSrcOptimal,
-			vk::SampleCountFlagBits::e1, false);  util::alloc_tracker.alloc("RenderPass:_data:handle");
+			asc.application->runtime().bestSampleCount, false);  util::alloc_tracker.alloc("RenderPass:_data:handle");
 		_data.descPool = mk_desc_pool(dev, imgs.size());  util::alloc_tracker.alloc("RenderPass:_data:descPool");
 		for(auto img : imgs) {
 			_data.swpchnImages.emplace_back(img, imgref::mk_data(
@@ -841,7 +854,7 @@ namespace vka2 {
 					blit.srcSubresource = blit.dstSubresource = vk::ImageSubresourceLayers(
 						vk::ImageAspectFlagBits::eColor, 0, 0, 1);
 					blitCmd.blitImage(
-						img->second.renderTarget.handle, vk::ImageLayout::eTransferSrcOptimal,
+						img->second.resolveTarget.handle, vk::ImageLayout::eTransferSrcOptimal,
 						img->first, vk::ImageLayout::eTransferDstOptimal,
 						blit, options.viewParams.upscaleNearestFilter?
 							vk::Filter::eNearest : vk::Filter::eLinear);
