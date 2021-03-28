@@ -97,12 +97,13 @@ void main_1() {
 
 void main() {
 	switch(frameUbo.shaderSelector) {
-		case 0:  main_0();  break;
-		case 1:  main_1();  break;
-		case 2:  main_0();  break;
-		case 3:  main_1();  break;
-		case 4:  main_0();  break;
-		case 5:
+		case 0:
+		case 1:  main_0();  break;
+		case 2:  main_1();  break;
+		case 3:  main_0();  break;
+		case 4:  main_1();  break;
+		case 5:  main_0();  break;
+		case 6:
 		default:  main_1();  break;
 	}
 }

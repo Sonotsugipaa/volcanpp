@@ -120,8 +120,14 @@ float computeSpecular(vec3 lightdirTan) {
 
 
 
-// Light diffusion
+// Diffuse texture as-is
 void main_0() {
+	out_col = texture(tex_dfs_sampler, frg_tex) * objectPc.col;
+}
+
+
+// Light diffusion
+void main_1() {
 	float diffusion = computeDiffusion(frg_lightdir_tan);
 	diffusion *= unnormalize(modelUbo.minDiffuse, modelUbo.maxDiffuse, diffusion);
 
@@ -134,7 +140,7 @@ void main_0() {
 
 
 // Cel shading, diffuse lighting
-void main_1() {
+void main_2() {
 	float diffusion = computeDiffusion(frg_lightdir_tan);
 	diffusion *= unnormalize(modelUbo.minDiffuse, modelUbo.maxDiffuse, diffusion);
 
@@ -149,7 +155,7 @@ void main_1() {
 
 
 // Specular light
-void main_2() {
+void main_3() {
 	float reflection = computeSpecular(frg_lightdir_tan);
 
 	out_col =
@@ -163,7 +169,7 @@ void main_2() {
 
 
 // Cel shading, specular light
-void main_3() {
+void main_4() {
 	float reflection = computeSpecular(frg_lightdir_tan);
 
 	out_col =
@@ -177,7 +183,7 @@ void main_3() {
 
 
 // Everything minus cel shading
-void main_4() {
+void main_5() {
 	float reflection = computeDiffusion(frg_lightdir_tan) + computeSpecular(frg_lightdir_tan);
 
 	out_col = texture(tex_dfs_sampler, frg_tex) * objectPc.col;
@@ -188,7 +194,7 @@ void main_4() {
 
 
 // Everything
-void main_5() {
+void main_6() {
 	float reflection = computeDiffusion(frg_lightdir_tan) + computeSpecular(frg_lightdir_tan);
 
 	out_col = texture(tex_dfs_sampler, frg_tex) * objectPc.col;
@@ -199,6 +205,14 @@ void main_5() {
 
 
 
+/* -- Selector values --
+ * 0: Raw diffuse texture
+ * 1: Diffuse lighting
+ * 2: Diffuse lighting with cel shading and outline
+ * 3: Specular lighting
+ * 4: Specular lighting with cel shading and outline
+ * 5: Diffuse and specular lighting
+ * 6: Diffuse and specular lighting with cel shading and outline */
 void main() {
 	switch(frameUbo.shaderSelector) {
 		case 0:  main_0();  break;
@@ -206,7 +220,8 @@ void main() {
 		case 2:  main_2();  break;
 		case 3:  main_3();  break;
 		case 4:  main_4();  break;
-		case 5:
-		default:  main_5();  break;
+		case 5:  main_5();  break;
+		case 6:
+		default:  main_6();  break;
 	}
 }

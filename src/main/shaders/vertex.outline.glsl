@@ -115,14 +115,23 @@ void main_1() {
 
 
 
+/* -- Selector values --
+ * 0: Raw diffuse texture
+ * 1: Diffuse lighting
+ * 2: Diffuse lighting with cel shading and outline
+ * 3: Specular lighting
+ * 4: Specular lighting with cel shading and outline
+ * 5: Diffuse and specular lighting
+ * 6: Diffuse and specular lighting with cel shading and outline */
 void main() {
 	switch(frameUbo.shaderSelector) {
-		case 0:  main_0();  break;
-		case 1:  main_1();  break;
-		case 2:  main_0();  break;
-		case 3:  main_1();  break;
-		case 4:  main_0();  break;
-		case 5:
+		case 0:
+		case 1:  main_0();  break;
+		case 2:  main_1();  break;
+		case 3:  main_0();  break;
+		case 4:  main_1();  break;
+		case 5:  main_0();  break;
+		case 6:
 		default:  main_1();  break;
 	}
 }

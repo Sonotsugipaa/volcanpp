@@ -95,6 +95,14 @@ vec3 rnd_f3(vec3 seed) {
 
 
 
+/* -- Selector values --
+ * 0: Raw diffuse texture
+ * 1: Diffuse lighting
+ * 2: Diffuse lighting with cel shading and outline
+ * 3: Specular lighting
+ * 4: Specular lighting with cel shading and outline
+ * 5: Diffuse and specular lighting
+ * 6: Diffuse and specular lighting with cel shading and outline */
 void main() {
 	mat4 modelViewMat = frameUbo.view * objectPc.world;
 	mat3 modelViewMat3 = mat3(modelViewMat);
@@ -114,13 +122,14 @@ void main() {
 
 	switch(frameUbo.shaderSelector) {
 		case 0:
-		case 1: {
+		case 1:
+		case 2: {
 			// NOP: diffuse reflection doesn't need the eye direction
 		} break;
-		case 2:
 		case 3:
 		case 4:
 		case 5:
+		case 6:
 		default: {
 			frg_eyedir_tan = normalize(tbnInverse * normalize(viewPos.xyz));
 		} break;

@@ -242,6 +242,7 @@ namespace {
 		km[GLFW_KEY_4] = [=](bool press, unsigned) { if(!press) ctrlCtx->shaderSelector = 3; };
 		km[GLFW_KEY_5] = [=](bool press, unsigned) { if(!press) ctrlCtx->shaderSelector = 4; };
 		km[GLFW_KEY_6] = [=](bool press, unsigned) { if(!press) ctrlCtx->shaderSelector = 5; };
+		km[GLFW_KEY_7] = [=](bool press, unsigned) { if(!press) ctrlCtx->shaderSelector = 6; };
 
 		km[GLFW_KEY_ESCAPE] = [=](bool press, unsigned) {
 			glfwSetWindowShouldClose(win, press); };
