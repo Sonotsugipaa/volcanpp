@@ -105,7 +105,7 @@ float computeDiffusion(vec3 lightdirTan) {
 	float r = unnormalize(
 		modelUbo.minDiffuse, modelUbo.maxDiffuse,
 			dot(-frg_nrm_tan, get_normal_tanspace() * lightdirTan));
-	r = max(0, min(1, r));
+	r = max(0, r);
 	return r;
 }
 
@@ -114,7 +114,7 @@ float computeSpecular(vec3 lightdirTan) {
 	float r = unnormalize(
 		modelUbo.minSpecular, modelUbo.maxSpecular,
 		dot(frg_eyedir_tan, get_normal_tanspace() * lightdirTan));
-	r = max(0, min(1, r));
+	r = max(0, r);
 	return r;
 }
 
