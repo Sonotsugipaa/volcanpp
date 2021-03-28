@@ -193,19 +193,16 @@ namespace {
 					// Position and UV are needed beforehand, normals are already provided by the obj data
 					getVtxPosNrmTex(indicesTri[i++], vtx);
 				}
-				{ // Calculate tangent and bitangent
+				{ // Calculate tangent
 					auto edge1 = r[1].pos - r[0].pos;
 					auto edge2 = r[2].pos - r[0].pos;
 					auto deltaUv1 = r[1].tex - r[0].tex;
 					auto deltaUv2 = r[2].tex - r[0].tex;
 					float determinant = (deltaUv1.x * deltaUv2.y) - (deltaUv1.y * deltaUv2.x);
 					tanu = ((edge1 * deltaUv2.y) - (edge2 * deltaUv1.y)) / determinant;
-					tanv = ((edge2 * deltaUv1.x) - (edge1 * deltaUv2.x)) / determinant;
 				}
 				for(auto& vtx : r) {
-					vtx.tanu = glm::normalize(tanu);
-					vtx.tanv = glm::normalize(tanv);
-				}
+					vtx.tanu = glm::normalize(tanu); }
 				return r;
 			};
 			if(shapes.empty()) {
@@ -218,6 +215,7 @@ namespace {
 				r.vtx.reserve(vtxEstimate);
 				r.idx.reserve(vtxEstimate);
 			}
+			// Put together basic data for each vertex
 			for(auto& shape : shapes) {
 				assert(shape.mesh.indices.size() % 3 == 0); // These need to be triangles
 				for(size_t i=0; i < shape.mesh.indices.size(); i += 3) {
@@ -229,6 +227,7 @@ namespace {
 					}
 				}
 			}
+			// Average out normals for vertices at the same position
 			for(auto& mapping : identicalMap) {
 				glm::vec3 nrmSum = { };
 				const glm::vec3::value_type denom = mapping.second.size();
@@ -240,24 +239,27 @@ namespace {
 					r.vtx[idx].nrm_smooth = nrmSum;
 				}
 			}
+			// Eventually average out non-smooth normals and tangents
 			if(doMerge) {
 				glm::vec3 tanuSum = { };
-				glm::vec3 tanvSum = { };
 				for(auto& mapping : identicalMap) {
-					const glm::vec3::value_type denom = mapping.second.size();
+					glm::vec3::value_type denom = mapping.second.size();
 					for(auto idx : mapping.second) {
-						tanuSum += r.vtx[idx].tanu;
-						tanvSum += r.vtx[idx].tanv;
-					}
+						tanuSum += r.vtx[idx].tanu; }
 					tanuSum = glm::normalize(tanuSum / denom);
-					tanvSum = glm::normalize(tanvSum / denom);
 					for(auto idx : mapping.second) {
-						r.vtx[idx].tanu = tanuSum;
-						r.vtx[idx].tanv = tanvSum;
+						auto& nrm = r.vtx[idx].nrm_smooth;
+						// Gram-Schmidt process
+						r.vtx[idx].tanu = glm::normalize(
+							tanuSum - glm::dot(tanuSum, nrm) * nrm);
 					}
 				}
 				for(auto& vtx : r.vtx) {
 					vtx.nrm = vtx.nrm_smooth; }
+			}
+			{ // Calculate bitangents
+				for(auto& vtx : r.vtx) {
+					vtx.tanv = glm::cross(vtx.nrm, vtx.tanu); }
 			}
 		} {
 			size_t vtxSize = r.vtx.size() * sizeof(Vertex);
