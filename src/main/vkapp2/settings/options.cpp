@@ -140,7 +140,6 @@ namespace vka2 {
 		GET_SETTING(worldParams, assetPath, std::string);
 		GET_SETTING(worldParams, colorNearestFilter, bool);
 		GET_SETTING(worldParams, normalNearestFilter, bool);
-		GET_SETTING(worldParams, mergeVertices, bool);
 		GET_SETTING_ARRAY(windowParams, windowExtent, int);
 		GET_SETTING(windowParams, maxVerticalResolution, unsigned);
 		GET_SETTING_ARRAY(viewParams, initialPosition, float);

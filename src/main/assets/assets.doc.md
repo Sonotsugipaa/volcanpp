@@ -51,7 +51,8 @@ Groups in the `models` list have the following properties:
 - `minDiffuse`: the minimum strength for diffuse lighting;
 - `maxDiffuse`: the maximum strength for diffuse lighting;
 - `minSpecular`: the minimum strength for specular lighting;
-- `maxSpecular`: the maximum strength for specular lighting.
+- `maxSpecular`: the maximum strength for specular lighting;
+- `mergeVertices`: whether the model normals should be merged together.
 
 ## Examples
 

@@ -73,6 +73,7 @@ namespace vka2 {
 				GET_VALUE(maxDiffuse,  float)
 				GET_VALUE(minSpecular, float)
 				GET_VALUE(maxSpecular, float)
+				GET_VALUE(mergeVertices, bool)
 				r.models.emplace_back(std::move(mdl));
 			}
 			#undef GET_VALUE

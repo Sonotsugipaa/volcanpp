@@ -387,68 +387,68 @@ namespace {
 	void load_ctx_assets(Application& app, RenderContext& dst) {
 		static_assert(ubo::Model::set == Texture::samplerDescriptorSet);
 		constexpr auto mdlDescSetLayoutIndex = ubo::Model::set;
+		std::map<std::string, Scene::Model*> mdlInfoMap;
 		std::string assetPath = get_asset_path();
 		auto& worldOpts = app.options().worldParams;
-		bool mergeVertices = worldOpts.mergeVertices;
 		Scene scene;
-
-		// Load the scene
-		{
+		{ // Load the scene
 			std::string scenePath = assetPath + "/scene.cfg";
 			util::logDebug() << "Reading scene from \"" << scenePath << '"' << util::endl;
 			scene = Scene::fromCfg(scenePath);
 			util::logDebug() << "Scene has " << scene.objects.size() << " objects" << util::endl;
-		}
-
-		// Create objects
-		for(auto& obj : scene.objects) {
-			Model::ObjSources src;
-			src.mdlName = obj.modelName;
-			src.objPath = assetPath + "/"s + src.mdlName + ".obj";
-			src.textureLoader = [&app, &src, &worldOpts, &assetPath](Texture::Usage usage) {
-				switch(usage) {
-					case Texture::Usage::eColor: return rd_texture(app,
-						assetPath + "/"s + src.mdlName + ".dfs.png", worldOpts.colorNearestFilter, MISSING_TEXTURE_COLOR);
-					case Texture::Usage::eNormal: return rd_texture(app,
-						assetPath + "/"s + src.mdlName + ".nrm.png", worldOpts.normalNearestFilter, glm::vec4(0.5f, 0.5f, 0.5f, 1.0f));
-					case Texture::Usage::eSpecular: throw std::runtime_error("Unimplemented; " __FILE__ ":" + std::to_string(__LINE__));
-					// case Texture::Usage::eSpecular: return rd_texture(app,
-					// 	src.objPath + ".spc.png", worldOpts.colorNearestFilter, glm::vec4(1.0f));
-					default: throw std::logic_error("invalid value of vka2::Texture::Usage");
+		} { // Make name -> model associations
+			for(auto& mdlInfo : scene.models) {
+				mdlInfoMap[mdlInfo.name] = &mdlInfo; }
+		} { // Create objects
+			for(auto& objInfo : scene.objects) {
+				Model::ObjSources src;
+				src.mdlName = objInfo.modelName;
+				src.objPath = assetPath + "/"s + src.mdlName + ".obj";
+				src.textureLoader = [&app, &src, &worldOpts, &assetPath](Texture::Usage usage) {
+					switch(usage) {
+						case Texture::Usage::eColor: return rd_texture(app,
+							assetPath + "/"s + src.mdlName + ".dfs.png",
+							worldOpts.colorNearestFilter, MISSING_TEXTURE_COLOR);
+						case Texture::Usage::eNormal: return rd_texture(app,
+							assetPath + "/"s + src.mdlName + ".nrm.png",
+							worldOpts.normalNearestFilter, glm::vec4(0.5f, 0.5f, 0.5f, 1.0f));
+						case Texture::Usage::eSpecular: throw std::runtime_error("Unimplemented; " __FILE__ ":" + std::to_string(__LINE__));
+						// case Texture::Usage::eSpecular: return rd_texture(app,
+						// 	src.objPath + ".spc.png", worldOpts.colorNearestFilter, glm::vec4(1.0f));
+						default: throw std::logic_error("invalid value of vka2::Texture::Usage");
+					}
+				};
+				dst.objects.push_back(std::move(Object {
+					.mdlWr = ModelWrapper(
+						Model::fromObj(app, src,
+							mdlInfoMap[objInfo.modelName]->mergeVertices,
+							&dst.mdlCache, &dst.matCache),
+						dst.rpass.descriptorPool(),
+						dst.rpass.descriptorSetLayouts()[mdlDescSetLayoutIndex]
+					),
+					.position = glm::vec3(objInfo.position[0], objInfo.position[1], objInfo.position[2]),
+					.orientation = glm::vec3(objInfo.orientation[0], objInfo.orientation[1], objInfo.orientation[2]),
+					.scale = glm::vec3(objInfo.scale[0], objInfo.scale[1], objInfo.scale[2]),
+					.color = glm::vec4(objInfo.color[0], objInfo.color[1], objInfo.color[2], objInfo.color[3]),
+					.rnd = dst.rngDistr(dst.rng)
+				}));
+			}
+		} { // Associate models with automatically created models
+			for(auto& mdlInfo : scene.models) {
+				auto found = dst.mdlCache.find(mdlInfo.name);
+				if(found != dst.mdlCache.end()) {
+					found->second->viewUbo([&dst, &mdlInfo](MemoryView<ubo::Model> ubo) {
+						*ubo.data = ubo::Model {
+							.minDiffuse = mdlInfo.minDiffuse,
+							.maxDiffuse = mdlInfo.maxDiffuse,
+							.minSpecular = mdlInfo.minSpecular,
+							.maxSpecular = mdlInfo.maxSpecular,
+							.rnd = dst.rngDistr(dst.rng) };
+						return true;
+					});
 				}
-			};
-			dst.objects.push_back(std::move(Object {
-				.mdlWr = ModelWrapper(
-					Model::fromObj(app, src, mergeVertices, &dst.mdlCache, &dst.matCache),
-					dst.rpass.descriptorPool(),
-					dst.rpass.descriptorSetLayouts()[mdlDescSetLayoutIndex]
-				),
-				.position = glm::vec3(obj.position[0], obj.position[1], obj.position[2]),
-				.orientation = glm::vec3(obj.orientation[0], obj.orientation[1], obj.orientation[2]),
-				.scale = glm::vec3(obj.scale[0], obj.scale[1], obj.scale[2]),
-				.color = glm::vec4(obj.color[0], obj.color[1], obj.color[2], obj.color[3]),
-				.rnd = dst.rngDistr(dst.rng)
-			}));
-		}
-
-		// Associate models with automatically created models
-		for(auto& mdl : scene.models) {
-			auto found = dst.mdlCache.find(mdl.name);
-			if(found != dst.mdlCache.end()) {
-				found->second->viewUbo([&dst, &mdl](MemoryView<ubo::Model> ubo) {
-					*ubo.data = ubo::Model {
-						.minDiffuse = mdl.minDiffuse,
-						.maxDiffuse = mdl.maxDiffuse,
-						.minSpecular = mdl.minSpecular,
-						.maxSpecular = mdl.maxSpecular,
-						.rnd = dst.rngDistr(dst.rng) };
-					return true;
-				});
 			}
 		}
-		util::logDebug()
-			<< "Found " << scene.objects.size() << " objects with "
-			<< scene.models.size() << " models" << util::endl;
 	}
 
 

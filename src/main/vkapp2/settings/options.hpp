@@ -58,8 +58,6 @@ namespace vka2 {
 			bool colorNearestFilter:1 = true;
 			// Use the nearest neighbor filter for normal textures (a.k.a. normal maps).
 			bool normalNearestFilter:1 = true;
-			// Give normals a pixelated feel by merging vertices together.
-			bool mergeVertices:1 = false;
 		} worldParams;
 		struct WindowParams {
 			// Size of the window.

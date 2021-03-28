@@ -45,9 +45,10 @@ namespace vka2 {
 		struct Model {
 			std::string name = "";
 			float minDiffuse = 0.0f;
-			float maxDiffuse = 0.3f;
+			float maxDiffuse = 0.7f;
 			float minSpecular = 0.0f;
-			float maxSpecular = 1.0f;
+			float maxSpecular = 0.3f;
+			bool mergeVertices:1 = false;
 		};
 
 
