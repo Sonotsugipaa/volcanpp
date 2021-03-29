@@ -469,6 +469,71 @@ namespace {
 		ctx.rpass.destroy();
 	}
 
+
+	void process_input(
+			RenderContext& ctx, glm::mat4& orientationMat
+	) {
+		constexpr auto rad360 = glm::radians(360.0f);
+		{ // Modify the current orientation based on the input state
+			glm::vec2 actualRotate = {
+				ctx.ctrlCtx.rotate.x,
+				ctx.ctrlCtx.rotate.y * YAW_TO_PITCH_RATIO };
+			ctx.orientation += ctx.turnSpeedKey * actualRotate * ctx.glfwCtx.framerateMul;
+			ctx.orientation.x -= std::floor(ctx.orientation.x / rad360) * rad360;
+			ctx.orientation.y -= std::floor(ctx.orientation.y / rad360) * rad360;
+		} { // Rotate the orientation matrix
+			orientationMat = glm::rotate(orientationMat,
+				ctx.orientation.y,
+				glm::vec3(1.0f, 0.0f, 0.0f));
+			orientationMat = glm::rotate(orientationMat,
+				ctx.orientation.x,
+				glm::vec3(0.0f, 1.0f, 0.0f));
+		} { // Change the current position based on the orientation
+			glm::vec3 deltaPos = ctx.moveSpeed * ctx.glfwCtx.framerateMul *
+				(ctx.ctrlCtx.fwdMoveVector - ctx.ctrlCtx.bcwMoveVector);
+			glm::vec4 deltaPosRotated = glm::transpose(orientationMat) * glm::vec4(deltaPos, 1.0f);
+			ctx.position += glm::vec3(deltaPosRotated);
+		}
+	}
+
+
+	void mk_obj_push_const(
+			const std::vector<Object>& objects,
+			std::vector<push_const::Object>& dst
+	) {
+		dst.reserve(dst.size() + objects.size());
+		for(const auto& obj : objects) {
+			push_const::Object newPc;
+			newPc.modelTransf = glm::mat4(1.0f);
+			newPc.modelTransf = glm::translate(newPc.modelTransf, obj.position);
+			newPc.modelTransf = glm::rotate(newPc.modelTransf,
+				glm::radians(obj.orientation.y), glm::vec3(1.0f, 0.0f, 0.0f));
+			newPc.modelTransf = glm::rotate(newPc.modelTransf,
+				glm::radians(obj.orientation.x), glm::vec3(0.0f, 1.0f, 0.0f));
+			newPc.modelTransf = glm::rotate(newPc.modelTransf,
+				glm::radians(obj.orientation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+			newPc.modelTransf = glm::scale(newPc.modelTransf, obj.scale);
+			newPc.colorMul = obj.color;
+			newPc.rnd = obj.rnd;
+			dst.push_back(newPc);
+		}
+		assert(dst.size() == objects.size());
+	}
+
+
+	void mk_frame_ubo(
+			RenderContext& ctx,
+			const glm::mat4& orientationMat,
+			ubo::Frame& dst
+	) {
+		dst.viewTransf = glm::mat4(1.0f);
+		dst.viewTransf = orientationMat * dst.viewTransf;
+		dst.viewTransf = glm::translate(dst.viewTransf, ctx.position);
+		dst.lightDirection = ctx.lightDirection;
+		dst.shaderSelector = ctx.ctrlCtx.shaderSelector;
+		dst.rnd = ctx.rngDistr(ctx.rng);
+	}
+
 }
 
 
@@ -485,6 +550,7 @@ namespace vka2 {
 		using glm::mat4;
 		const auto& opts = _data.options;
 		RenderContext ctx { };
+		std::vector<push_const::Object> objPushConsts;
 		create_render_ctx(*this, ctx);
 		{
 			{
@@ -499,25 +565,7 @@ namespace vka2 {
 				while(! glfwWindowShouldClose(_data.glfwWin)) {
 					mat4 orientationMat = mat4(1.0f);
 					glfwPollEvents();
-					{
-						constexpr auto rad360 = glm::radians(360.0f);
-						vec2 actualRotate = {
-							ctx.ctrlCtx.rotate.x,
-							ctx.ctrlCtx.rotate.y * YAW_TO_PITCH_RATIO };
-						ctx.orientation += ctx.turnSpeedKey * actualRotate * ctx.glfwCtx.framerateMul;
-						ctx.orientation.x -= std::floor(ctx.orientation.x / rad360) * rad360;
-						ctx.orientation.y -= std::floor(ctx.orientation.y / rad360) * rad360;
-						orientationMat = glm::rotate(orientationMat,
-							ctx.orientation.y,
-							vec3(1.0f, 0.0f, 0.0f));
-						orientationMat = glm::rotate(orientationMat,
-							ctx.orientation.x,
-							vec3(0.0f, 1.0f, 0.0f));
-						vec3 deltaPos = ctx.moveSpeed * ctx.glfwCtx.framerateMul *
-							(ctx.ctrlCtx.fwdMoveVector - ctx.ctrlCtx.bcwMoveVector);
-						vec4 deltaPosRotated = glm::transpose(orientationMat) * vec4(deltaPos, 1.0f);
-						ctx.position += vec3(deltaPosRotated);
-					}
+					process_input(ctx, orientationMat);
 					auto draw = [&ctx](
 							RenderPass::FrameHandle& fh, vk::CommandBuffer cmd,
 							const Object& obj, const push_const::Object& objPushConst,
@@ -535,50 +583,19 @@ namespace vka2 {
 						cmd.drawIndexed(obj.mdlWr->idxCount(), 1, 0, 0, 0);
 					};
 					ubo::Frame frameUbo;
-					frameUbo.viewTransf = mat4(1.0f);
-					frameUbo.viewTransf = orientationMat * frameUbo.viewTransf;
-					frameUbo.viewTransf = glm::translate(frameUbo.viewTransf, ctx.position);
-					frameUbo.lightDirection = ctx.lightDirection;
-					frameUbo.shaderSelector = ctx.ctrlCtx.shaderSelector;
-					frameUbo.rnd = ctx.rngDistr(ctx.rng);
+					mk_frame_ubo(ctx, orientationMat, frameUbo);
+					objPushConsts.clear();
+					mk_obj_push_const(ctx.objects, objPushConsts);
 					ctx.rpass.runRenderPass(frameUbo, { }, { }, std::vector {
 						std::function([&](RenderPass::FrameHandle& fh, vk::CommandBuffer cmd) {
-							for(const auto& obj : ctx.objects) {
-								push_const::Object objPushConst;
-								objPushConst.modelTransf = glm::mat4(1.0f);
-								objPushConst.modelTransf = glm::translate(
-									objPushConst.modelTransf, obj.position);
-								objPushConst.modelTransf = glm::rotate(objPushConst.modelTransf,
-									glm::radians(obj.orientation.y), glm::vec3(1.0f, 0.0f, 0.0f));
-								objPushConst.modelTransf = glm::rotate(objPushConst.modelTransf,
-									glm::radians(obj.orientation.x), glm::vec3(0.0f, 1.0f, 0.0f));
-								objPushConst.modelTransf = glm::rotate(objPushConst.modelTransf,
-									glm::radians(obj.orientation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-								objPushConst.modelTransf = glm::scale(objPushConst.modelTransf,
-									obj.scale);
-								objPushConst.colorMul = obj.color;
-								objPushConst.rnd = obj.rnd;
-								draw(fh, cmd, obj, objPushConst, ctx.mainPipeline);
-							}
+							assert(objPushConsts.size() == ctx.objects.size());
+							for(size_t i=0; i < ctx.objects.size(); ++i) {
+								draw(fh, cmd, ctx.objects[i], objPushConsts[i], ctx.mainPipeline); }
 						}),
 						std::function([&](RenderPass::FrameHandle& fh, vk::CommandBuffer cmd) {
-							for(const auto& obj : ctx.objects) {
-								push_const::Object objPushConst;
-								objPushConst.modelTransf = glm::mat4(1.0f);
-								objPushConst.modelTransf = glm::translate(
-									objPushConst.modelTransf, obj.position);
-								objPushConst.modelTransf = glm::rotate(objPushConst.modelTransf,
-									glm::radians(obj.orientation.y), glm::vec3(1.0f, 0.0f, 0.0f));
-								objPushConst.modelTransf = glm::rotate(objPushConst.modelTransf,
-									glm::radians(obj.orientation.x), glm::vec3(0.0f, 1.0f, 0.0f));
-								objPushConst.modelTransf = glm::rotate(objPushConst.modelTransf,
-									glm::radians(obj.orientation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-								objPushConst.modelTransf = glm::scale(objPushConst.modelTransf,
-									obj.scale);
-								objPushConst.colorMul = obj.color;
-								objPushConst.rnd = obj.rnd;
-								draw(fh, cmd, obj, objPushConst, ctx.outlinePipeline);
-							}
+							assert(objPushConsts.size() == ctx.objects.size());
+							for(size_t i=0; i < ctx.objects.size(); ++i) {
+								draw(fh, cmd, ctx.objects[i], objPushConsts[i], ctx.outlinePipeline); }
 						})
 					});
 					util::sleep_s(ctx.glfwCtx.framerateMul);
