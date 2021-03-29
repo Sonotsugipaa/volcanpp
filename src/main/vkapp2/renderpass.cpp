@@ -298,7 +298,6 @@ namespace {
 		icInfo.tiling = vk::ImageTiling::eOptimal;
 		icInfo.usage =
 			vk::ImageUsageFlagBits::eTransferSrc |
-			vk::ImageUsageFlagBits::eTransferDst |
 			vk::ImageUsageFlagBits::eColorAttachment;
 		return asc.application->createImage(icInfo,
 			vk::MemoryPropertyFlagBits::eDeviceLocal);

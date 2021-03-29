@@ -3,13 +3,10 @@
 ## High priority
 
 - Subdivide procedures currently globbed in Application::Run
-- Prepare for public availability
-  - README.md
-    - Almost done, but the "`Building the application`" section is incomplete
-  - LICENSE.md
 
 ## Low priority
 
+- Use the "useMultisampling" option in the settings file, or remove it
 - Replace the minimum specular lighting parameter with the specular lighting exponent
 - Refactor the unconventionally named "world" matrix to the more
   sensible *model* matrix
