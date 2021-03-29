@@ -7,7 +7,6 @@
 ## Low priority
 
 - Use the "useMultisampling" option in the settings file, or remove it
-- Replace the minimum specular lighting parameter with the specular lighting exponent
 - Refactor the unconventionally named "world" matrix to the more
   sensible *model* matrix
 - Make the RenderPass <=> Pipeline co-dependency co-nsistent

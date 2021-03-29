@@ -443,7 +443,7 @@ namespace {
 						*ubo.data = ubo::Model {
 							.minDiffuse = mdlInfo.minDiffuse,
 							.maxDiffuse = mdlInfo.maxDiffuse,
-							.minSpecular = mdlInfo.minSpecular,
+							.expSpecular = mdlInfo.expSpecular,
 							.maxSpecular = mdlInfo.maxSpecular,
 							.rnd = dst.rngDistr(dst.rng) };
 						return true;

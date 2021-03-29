@@ -43,7 +43,7 @@ layout(set = 0, binding = 0) uniform StaticUbo {
 layout(set = 1, binding = 0) uniform ModelUbo {
 	float minDiffuse;
 	float maxDiffuse;
-	float minSpecular;
+	float expSpecular;
 	float maxSpecular;
 	float rnd;
 } modelUbo;
@@ -112,8 +112,10 @@ float computeDiffusion(vec3 lightdirTan) {
 
 float computeSpecular(vec3 lightdirTan) {
 	float r = unnormalize(
-		modelUbo.minSpecular, modelUbo.maxSpecular,
-		dot(frg_eyedir_tan, get_normal_tanspace() * lightdirTan));
+		0, modelUbo.maxSpecular,
+		pow(
+			dot(frg_eyedir_tan, get_normal_tanspace() * lightdirTan),
+			modelUbo.expSpecular));
 	r = max(0, r);
 	return r;
 }

@@ -43,7 +43,7 @@ layout(set = 0, binding = 0) uniform StaticUbo {
 layout(set = 1, binding = 0) uniform ModelUbo {
 	float minDiffuse;
 	float maxDiffuse;
-	float minSpecular;
+	float expSpecular;
 	float maxSpecular;
 	float rnd;
 } modelUbo;

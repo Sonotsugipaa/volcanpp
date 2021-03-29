@@ -128,7 +128,7 @@ namespace vka2 {
 			constexpr static unsigned binding = 0;
 			SPIRV_ALIGNED(float)      minDiffuse;
 			SPIRV_ALIGNED(float)      maxDiffuse;
-			SPIRV_ALIGNED(float)      minSpecular;
+			SPIRV_ALIGNED(float)      expSpecular;
 			SPIRV_ALIGNED(float)      maxSpecular;
 			SPIRV_ALIGNED(float)      rnd; // Different for every model
 		};
