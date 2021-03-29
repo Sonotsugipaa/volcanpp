@@ -28,7 +28,7 @@
 
 
 layout(push_constant) uniform ObjectPushConstant {
-	mat4 world; // Model space to world space
+	mat4 modelMat;
 	vec4 col;
 	float rnd;
 } objectPc;

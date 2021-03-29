@@ -26,7 +26,7 @@
  * structures eventually used by the programmable shaders.
  *
  * It is similar to pod.hpp, but the latter is included in graphics.hpp
- * and modifying will cause many more translation units to be recompiled. */
+ * and modifying it will cause many more translation units to be recompiled. */
 
 #pragma once
 

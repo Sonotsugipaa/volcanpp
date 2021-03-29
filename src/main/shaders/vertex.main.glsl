@@ -28,7 +28,7 @@
 
 
 layout(push_constant) uniform ObjectPushConstant {
-	mat4 world; // This should be refactored to "model", for consistency
+	mat4 modelMat;
 	vec4 col;
 	float rnd;
 } objectPc;
@@ -104,10 +104,10 @@ vec3 rnd_f3(vec3 seed) {
  * 5: Diffuse and specular lighting
  * 6: Diffuse and specular lighting with cel shading and outline */
 void main() {
-	mat4 modelViewMat = frameUbo.view * objectPc.world;
+	mat4 modelViewMat = frameUbo.view * objectPc.modelMat;
 	mat3 modelViewMat3 = mat3(modelViewMat);
-	vec4 worldPos = objectPc.world * vec4(in_pos, 1.0);
-	vec3 worldNrm = inverse(transpose(mat3(objectPc.world))) * normalize(in_nrm);
+	vec4 worldPos = objectPc.modelMat * vec4(in_pos, 1.0);
+	vec3 worldNrm = inverse(transpose(mat3(objectPc.modelMat))) * normalize(in_nrm);
 	vec4 viewPos = modelViewMat * vec4(in_pos, 1.0);
 	vec3 viewTanU = modelViewMat3 * normalize(in_tanu);
 	vec3 viewTanV = modelViewMat3 * normalize(in_tanv);

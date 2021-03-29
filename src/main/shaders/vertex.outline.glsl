@@ -28,7 +28,7 @@
 
 
 layout(push_constant) uniform ObjectPushConstant {
-	mat4 world; // Model space to world space
+	mat4 modelMat;
 	vec4 col;
 	float rnd;
 } objectPc;
@@ -97,10 +97,10 @@ void main_0() {
 
 // Cel shading, reflection
 void main_1() {
-	mat4 modelViewMat = frameUbo.view * objectPc.world;
+	mat4 modelViewMat = frameUbo.view * objectPc.modelMat;
 	mat3 modelViewMat3 = mat3(modelViewMat);
-	vec4 worldPos = objectPc.world * vec4(in_pos, 1.0);
-	vec3 worldNrm = inverse(transpose(mat3(objectPc.world))) * normalize(in_nrm_smooth);
+	vec4 worldPos = objectPc.modelMat * vec4(in_pos, 1.0);
+	vec3 worldNrm = inverse(transpose(mat3(objectPc.modelMat))) * normalize(in_nrm_smooth);
 
 	worldPos.xyz += worldNrm * staticUbo.outlineSize;
 

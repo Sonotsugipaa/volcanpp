@@ -6,9 +6,10 @@
 
 ## Low priority
 
+- Move from `params.cfg` to `scene.cfg` as many things as possible
+- Implement outline shape randomization
+- Prune unused constants from constants.hpp
 - Use the "useMultisampling" option in the settings file, or remove it
-- Refactor the unconventionally named "world" matrix to the more
-  sensible *model* matrix
 - Make the RenderPass <=> Pipeline co-dependency co-nsistent
 - Fix model loading causing a segfault if a model cache is not provided
 - Move all the Vulkan (and Vulkan C++ bindings) calls away from application_run.cpp
