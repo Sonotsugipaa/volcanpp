@@ -3,11 +3,11 @@
 ## High priority
 
 - Use the "useMultisampling" option in the settings file, or remove it
-- Add fullscreenability
 - Move all the Vulkan (and Vulkan C++ bindings) calls away from application_run.cpp
 
 ## Low priority
 
+- RAIIize some RAIIizeable C-with-classes classes
 - Move from `params.cfg` to `scene.cfg` as many things as possible
 - Prune unused constants from constants.hpp
 - Make the RenderPass <=> Pipeline co-dependency co-nsistent
@@ -17,6 +17,7 @@
   possibly with some Vulkan pipeline mechanism I don't know yet
 - Implement dynamic model LOD
 - Add outline color to the push constant
+- Port to Visual Studio, if possible at all
 
 ## Bug fixes
 

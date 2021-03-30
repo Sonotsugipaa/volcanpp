@@ -66,6 +66,8 @@ namespace vka2 {
 			std::array<unsigned, 2> windowExtent = { 1200, 900 };
 			// How many pixels can be rendered vertically.
 			unsigned short maxVerticalResolution = std::numeric_limits<unsigned short>::max();
+			// Whether to start the application in fullscreen mode
+			bool initFullscreen:1 = false;
 		} windowParams;
 		struct ViewParams {
 			// The initial view position.

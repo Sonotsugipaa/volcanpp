@@ -143,6 +143,7 @@ namespace vka2 {
 		GET_SETTING(worldParams, normalNearestFilter, bool);
 		GET_SETTING_ARRAY(windowParams, windowExtent, int);
 		GET_SETTING(windowParams, maxVerticalResolution, unsigned);
+		GET_SETTING(windowParams, initFullscreen, bool);
 		GET_SETTING_ARRAY(viewParams, initialPosition, float);
 		GET_SETTING(viewParams, initialPitch, float);
 		GET_SETTING(viewParams, fov, float);

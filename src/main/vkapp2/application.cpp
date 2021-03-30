@@ -251,13 +251,23 @@ namespace {
 	}
 
 
-	GLFWwindow* mk_window(Options& opts) {
+	GLFWwindow* mk_window(Options& opts, bool fullscreen) {
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);  // Do not create the OpenGL context
 		glfwWindowHint(GLFW_RESIZABLE, true);
+		GLFWmonitor* mon = nullptr;
+		if(fullscreen) {
+			mon = glfwGetPrimaryMonitor();
+			if(mon == nullptr) {
+				const char* err;
+				glfwGetError(&err);
+				throw std::runtime_error(
+					"failed to acquire the primary monitor with GLFW ("s + err + ")"s);
+			}
+		}
 		GLFWwindow* r = glfwCreateWindow(
 			opts.windowParams.windowExtent[0],
 			opts.windowParams.windowExtent[1],
-			WINDOW_TITLE, nullptr, nullptr);
+			WINDOW_TITLE, mon, nullptr);
 		if(r == nullptr) {
 			const char* err;
 			glfwGetError(&err);
@@ -359,11 +369,13 @@ namespace {
 
 	void get_runtime_params(
 			vk::PhysicalDevice pDev,
-			bool doUseStencil, Runtime* runtimePtr
+			bool doUseStencil,
+			const vka2::Options& opts, Runtime* runtimePtr
 	) {
 		vk::PhysicalDeviceProperties pDevProps = pDev.getProperties();
 		runtimePtr->depthOptimalFmt = select_depthstencil_format(pDev, false);
 		runtimePtr->samplerAnisotropy = pDevProps.limits.maxSamplerAnisotropy;
+		runtimePtr->fullscreen = opts.windowParams.initFullscreen;
 		{
 			auto supportedSamples =
 				pDevProps.limits.framebufferColorSampleCounts &
@@ -446,20 +458,14 @@ namespace vka2 {
 			_data.pDev, _data.dev);  util::alloc_tracker.alloc("Application:_data:alloc");
 		_data.transferCmdPool = CommandPool(_data.dev, _data.qFamIdx.transfer, true);  util::alloc_tracker.alloc("Application:_data:transferCmdPool");
 		_data.graphicsCmdPool = CommandPool(_data.dev, _data.qFamIdx.graphics, true);  util::alloc_tracker.alloc("Application:_data:graphicsCmdPool");
-		_data.glfwWin = mk_window(_data.options);  util::alloc_tracker.alloc("Application:_data:glfwWin");
-		_data.surface = mk_window_surface(_vk_instance, _data.glfwWin);  util::alloc_tracker.alloc("Application:_data:surface");
-		get_runtime_params(_data.pDev, false, &_data.runtime);
-		std::tie(_data.qFamIdxPresent, _data.presentQueue) =
-			find_present_idx(_data.pDev, _data.qFamIdx, _data.queues, _data.surface);
-		_create_swapchain();
+		get_runtime_params(_data.pDev, false, _data.options, &_data.runtime);
+		_create_window(_data.runtime.fullscreen);
 		util::alloc_tracker.alloc("Application");
 	}
 
 
 	void Application::destroy() {
-		_destroy_swapchain(false);
-		_vk_instance.destroySurfaceKHR(_data.surface);  util::alloc_tracker.dealloc("Application:_data:surface");
-		glfwDestroyWindow(_data.glfwWin);  util::alloc_tracker.dealloc("Application:_data:glfwWin");
+		_destroy_window();
 		_data.graphicsCmdPool.destroy();  util::alloc_tracker.dealloc("Application:_data:graphicsCmdPool");
 		_data.transferCmdPool.destroy();  util::alloc_tracker.dealloc("Application:_data:transferCmdPool");
 		vmaDestroyAllocator(_data.alloc);  util::alloc_tracker.dealloc("Application:_data:alloc");
@@ -467,6 +473,22 @@ namespace vka2 {
 		_vk_instance.destroy();
 		glfwTerminate();
 		util::alloc_tracker.dealloc("Application");
+	}
+
+
+	void Application::_create_window(bool fullscreen) {
+		_data.glfwWin = mk_window(_data.options, fullscreen);  util::alloc_tracker.alloc("Application:_data:glfwWin");
+		_data.surface = mk_window_surface(_vk_instance, _data.glfwWin);  util::alloc_tracker.alloc("Application:_data:surface");
+		std::tie(_data.qFamIdxPresent, _data.presentQueue) =
+			find_present_idx(_data.pDev, _data.qFamIdx, _data.queues, _data.surface);
+		_create_swapchain();
+	}
+
+
+	void Application::_destroy_window() {
+		_destroy_swapchain(false);
+		_vk_instance.destroySurfaceKHR(_data.surface);  util::alloc_tracker.dealloc("Application:_data:surface");
+		glfwDestroyWindow(_data.glfwWin);  util::alloc_tracker.dealloc("Application:_data:glfwWin");
 	}
 
 
@@ -510,6 +532,15 @@ namespace vka2 {
 		_data.dev.waitIdle();
 		_destroy_swapchain(true);
 		_create_swapchain();
+	}
+
+
+	void Application::setFullscreen(bool value) {
+		if(_data.runtime.fullscreen != value) {
+			_destroy_window();
+			_data.runtime.fullscreen = value;
+			_create_window(value);
+		}
 	}
 
 

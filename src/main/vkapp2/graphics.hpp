@@ -485,16 +485,25 @@ namespace vka2 {
 		void destroy();
 
 	private:
+		void _create_window(bool fullscreen);
+		void _destroy_window();
+
 		void _create_swapchain();
 		void _destroy_swapchain(bool keep_cached);
+
 		void* _mmap_buffer(VmaAllocation&);
 	public:
 
 		void run();
 
 		/* After a call to this, all references to this object's
-		 * swapchain are invalid. *//**/
+		 * old swapchain are invalid. *//**/
 		void rebuildSwapChain();
+
+		/* After a call to this, all references to this object's
+		 * old swapchain are invalid: Application::rebuildSwapChain
+		 * is called. *//**/
+		void setFullscreen(bool);
 
 
 		const vk::FormatProperties& getFormatProperties(vk::Format) const noexcept;
@@ -543,7 +552,7 @@ namespace vka2 {
 		GETTER_REF_CONST(_data.surfaceCapabs,   surfaceCapabilities    )
 		GETTER_REF_CONST(_data.surfaceFmt,      surfaceFormat          )
 		GETTER_REF      (_data.options,         options                )
-		GETTER_REF      (_data.runtime,         runtime                )
+		GETTER_REF_CONST(_data.runtime,         runtime                )
 	};
 
 }

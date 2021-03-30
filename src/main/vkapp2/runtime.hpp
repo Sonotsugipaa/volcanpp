@@ -39,6 +39,7 @@ namespace vka2 {
 		vk::Format depthOptimalFmt = vk::Format::eD32Sfloat;
 		vk::SampleCountFlagBits bestSampleCount = vk::SampleCountFlagBits::e1;
 		unsigned samplerAnisotropy = 1;
+		bool fullscreen = false;
 	};
 
 

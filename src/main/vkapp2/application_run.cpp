@@ -58,6 +58,7 @@ namespace {
 		unsigned shaderSelector;
 		bool dragView;
 		bool speedMod;
+		bool toggleFullscreen;
 	};
 
 
@@ -228,6 +229,11 @@ namespace {
 		km[GLFW_KEY_F] = [=](bool press, unsigned) {
 			ctrlCtx->fwdMoveVector.y = press? 1.0f : 0.0f; };
 
+		km[GLFW_KEY_ENTER] = [=](bool press, unsigned mod) {
+			if((! press) && (mod & GLFW_MOD_ALT)) {
+				ctrlCtx->toggleFullscreen = true; }
+		};
+
 		km[GLFW_KEY_RIGHT] = [=](bool press, unsigned) {
 			ctrlCtx->rotate.x = press? +1.0f : 0.0f; };
 		km[GLFW_KEY_LEFT] = [=](bool press, unsigned) {
@@ -285,7 +291,8 @@ namespace {
 		dst.ctrlCtx = {
 			.fwdMoveVector = { }, .bcwMoveVector = { },
 			.rotate = { }, .lastCursorPos = { },
-			.shaderSelector = 0, .dragView = false, .speedMod = false };
+			.shaderSelector = 0, .dragView = false, .speedMod = false,
+			.toggleFullscreen = false };
 		dst.keymap = mk_key_bindings(app.glfwWindow(), &dst.ctrlCtx);
 		dst.glfwCtx = {
 			.keymap = &dst.keymap, .app = &app,
@@ -338,7 +345,10 @@ namespace {
 	}
 
 
-	void create_render_ctx_rpass(Application& app, RenderContext& dst) {
+	void create_render_ctx_rpass(
+			Application& app,
+			RenderContext& dst, const Options& opts
+	) {
 		CtrlSchemeContext* dstCtrlCtx = &dst.ctrlCtx;
 		RenderPass* dstRpass = &dst.rpass;
 		Pipeline* dstMainPl = &dst.mainPipeline;
@@ -389,6 +399,23 @@ namespace {
 				app.swapchain().data.extent),
 			MAX_CONCURRENT_FRAMES, onSwpchnOod);
 		buildPipelines();
+
+		set_user_controls(dst, app.glfwWindow());
+		set_static_ubo(dst.rpass, opts);
+	}
+
+
+	void destroy_render_ctx_rpass(RenderContext& ctx) {
+		ctx.outlinePipeline.destroy();
+		ctx.mainPipeline.destroy();
+		ctx.rpass.destroy();
+	}
+
+
+	void toggle_fullscreen(Application& app, RenderContext& ctx, const Options& opts) {
+		destroy_render_ctx_rpass(ctx);
+		app.setFullscreen(! app.runtime().fullscreen);
+		create_render_ctx_rpass(app, ctx, opts);
 	}
 
 
@@ -460,27 +487,36 @@ namespace {
 	}
 
 
-	void create_render_ctx(Application& app, RenderContext& dst) {
+	void create_render_ctx(
+			Application& app,
+			RenderContext& dst, const Options& opts
+	) {
 		init_render_ctx_pod(app, dst);
-		set_user_controls(dst, app.glfwWindow());
 		read_ctx_shaders(app, dst);
-		create_render_ctx_rpass(app, dst);
+		create_render_ctx_rpass(app, dst, opts);
 		load_ctx_assets(app, dst);
 	}
 
 
 	void destroy_render_ctx(RenderContext& ctx) {
-		ctx.outlinePipeline.destroy();
-		ctx.mainPipeline.destroy();
-		ctx.rpass.destroy();
+		destroy_render_ctx_rpass(ctx);
 	}
 
 
 	void process_input(
+			Application& app, const Options& opts,
 			RenderContext& ctx, glm::mat4& orientationMat
 	) {
 		constexpr auto rad360 = glm::radians(360.0f);
-		{ // Modify the current orientation based on the input state
+		{ // Check if the window should switch to fullscreen or windowed mode
+			if(ctx.ctrlCtx.toggleFullscreen) {
+				util::logVkEvent() << "Setting "
+					<< (app.runtime().fullscreen? "windowed " : "fullscreen ")
+					<< "mode" << util::endl;
+				toggle_fullscreen(app, ctx, opts);
+				ctx.ctrlCtx.toggleFullscreen = false;
+			}
+		} { // Modify the current orientation based on the input state
 			float adjustedTurnSpeed = ctx.ctrlCtx.speedMod?
 				ctx.turnSpeedKeyMod : ctx.turnSpeedKey;
 			glm::vec2 actualRotate = {
@@ -561,12 +597,10 @@ namespace vka2 {
 		const auto& opts = _data.options;
 		RenderContext ctx { };
 		std::vector<push_const::Object> objPushConsts;
-		create_render_ctx(*this, ctx);
+		create_render_ctx(*this, ctx, opts);
 		{
 			{
 				{
-					set_static_ubo(ctx.rpass, opts);
-				} {
 					size_t vtxCount = 0;
 					for(const auto& obj : ctx.objects) {
 						vtxCount += obj.mdlWr->idxCount(); }
@@ -575,7 +609,7 @@ namespace vka2 {
 				while(! glfwWindowShouldClose(_data.glfwWin)) {
 					mat4 orientationMat = mat4(1.0f);
 					glfwPollEvents();
-					process_input(ctx, orientationMat);
+					process_input(*this, opts, ctx, orientationMat);
 					auto draw = [&ctx](
 							RenderPass::FrameHandle& fh, vk::CommandBuffer cmd,
 							const Object& obj, const push_const::Object& objPushConst,
