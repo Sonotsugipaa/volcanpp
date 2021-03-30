@@ -121,7 +121,7 @@ void main_1() {
 
 
 /* -- Selector values --
- * 0: Raw diffuse texture
+ * 0: Diffuse and specular lighting without using normal maps
  * 1: Diffuse lighting
  * 2: Diffuse lighting with cel shading and outline
  * 3: Specular lighting

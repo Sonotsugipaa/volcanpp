@@ -97,7 +97,7 @@ vec3 rnd_f3(vec3 seed) {
 
 
 /* -- Selector values --
- * 0: Raw diffuse texture
+ * 0: Diffuse and specular lighting without using normal maps
  * 1: Diffuse lighting
  * 2: Diffuse lighting with cel shading and outline
  * 3: Specular lighting
@@ -122,11 +122,11 @@ void main() {
 	frg_lightdir_tan = normalize(tbnInverse * mat3(frameUbo.view) * frameUbo.lightDirection);
 
 	switch(frameUbo.shaderSelector) {
-		case 0:
 		case 1:
 		case 2: {
 			// NOP: diffuse reflection doesn't need the eye direction
 		} break;
+		case 0:
 		case 3:
 		case 4:
 		case 5:
