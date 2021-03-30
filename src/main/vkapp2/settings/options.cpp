@@ -146,6 +146,7 @@ namespace vka2 {
 		GET_SETTING(viewParams, initialPitch, float);
 		GET_SETTING(viewParams, fov, float);
 		GET_SETTING(viewParams, viewTurnSpeedKey, float);
+		GET_SETTING(viewParams, viewTurnSpeedKeyMod, float);
 		GET_SETTING(viewParams, viewMoveSpeed, float);
 		GET_SETTING(viewParams, viewMoveSpeedMod, float);
 		GET_SETTING(viewParams, frameFrequencyS, float);

@@ -139,7 +139,7 @@ namespace {
 		glm::vec3 position;
 		glm::vec2 orientation;
 		unsigned frameCounter;
-		float turnSpeedKey, moveSpeed, moveSpeedMod;
+		float turnSpeedKey, turnSpeedKeyMod, moveSpeed, moveSpeedMod;
 	};
 
 
@@ -292,6 +292,7 @@ namespace {
 			.ctrlCtx = &dst.ctrlCtx, .framerateMul = 1.0f / opts.viewParams.frameFrequencyS };
 		dst.rngDistr = std::uniform_real_distribution<float>(0.0f, 1.0f);
 		dst.turnSpeedKey = opts.viewParams.viewTurnSpeedKey;
+		dst.turnSpeedKeyMod = opts.viewParams.viewTurnSpeedKeyMod;
 		dst.moveSpeed = opts.viewParams.viewMoveSpeed;
 		dst.moveSpeedMod = opts.viewParams.viewMoveSpeedMod;
 		dst.lightDirection = glm::normalize(glm::vec3({
@@ -302,7 +303,7 @@ namespace {
 			-opts.viewParams.initialPosition[0],
 			-opts.viewParams.initialPosition[1],
 			-opts.viewParams.initialPosition[2] };
-		dst.orientation = { 0.0f, opts.viewParams.initialPitch };
+		dst.orientation = { 0.0f, glm::radians(opts.viewParams.initialPitch) };
 		dst.frameCounter = 0;
 	}
 
@@ -479,10 +480,12 @@ namespace {
 	) {
 		constexpr auto rad360 = glm::radians(360.0f);
 		{ // Modify the current orientation based on the input state
+			float adjustedTurnSpeed = ctx.ctrlCtx.speedMod?
+				ctx.turnSpeedKeyMod : ctx.turnSpeedKey;
 			glm::vec2 actualRotate = {
 				ctx.ctrlCtx.rotate.x,
 				ctx.ctrlCtx.rotate.y * YAW_TO_PITCH_RATIO };
-			ctx.orientation += ctx.turnSpeedKey * actualRotate * ctx.glfwCtx.framerateMul;
+			ctx.orientation += adjustedTurnSpeed * actualRotate * ctx.glfwCtx.framerateMul;
 			ctx.orientation.x -= std::floor(ctx.orientation.x / rad360) * rad360;
 			ctx.orientation.y -= std::floor(ctx.orientation.y / rad360) * rad360;
 		} { // Rotate the orientation matrix

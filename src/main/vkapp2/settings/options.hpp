@@ -73,9 +73,11 @@ namespace vka2 {
 			// How many degrees the image has to span vertically.
 			float fov = 100.0f;
 			// How fast the view turns when using the keyboard (degrees / second)
-			float viewTurnSpeedKey = 2.5f;
+			float viewTurnSpeedKey = 1.5f;
+			// How fast the view turns when using the keyboard and the speed modifier is active (degrees / second)
+			float viewTurnSpeedKeyMod = 3.5f;
 			// How fast the view moves (units / second)
-			float viewMoveSpeed = 4.0f;
+			float viewMoveSpeed = 2.0f;
 			// How fast the view moves when the speed modifier is active (units / second)
 			float viewMoveSpeedMod = 12.0f;
 			// How frequently to render frames (1 / seconds).
