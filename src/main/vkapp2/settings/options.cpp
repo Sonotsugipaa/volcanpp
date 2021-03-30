@@ -134,6 +134,7 @@ namespace vka2 {
 		GET_SETTING(shaderParams, zFar, float);
 		GET_SETTING(shaderParams, outlineSize, float);
 		GET_SETTING(shaderParams, outlineDepth, float);
+		GET_SETTING(shaderParams, outlineRndMorph, float);
 		GET_SETTING(shaderParams, celLightLevels, unsigned short);
 		GET_SETTING_ARRAY(worldParams, clearColor, float);
 		GET_SETTING_ARRAY(worldParams, lightDirection, float);

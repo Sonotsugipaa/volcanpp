@@ -115,6 +115,7 @@ namespace vka2 {
 			SPIRV_ALIGNED(glm::mat4)  projTransf;
 			SPIRV_ALIGNED(float)      outlineSize; // Measured in world units
 			SPIRV_ALIGNED(float)      outlineDepth; // Scales with zNear, unfortunately
+			SPIRV_ALIGNED(float)      outlineRnd; // Random factor for outline vertex positions
 			SPIRV_ALIGNED(uint32_t)   lightLevels;
 		};
 

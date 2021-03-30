@@ -319,6 +319,7 @@ namespace {
 		sUbo.projTransf = glm::scale(sUbo.projTransf, glm::vec3(-0.5)); // "Clip space is inverted and halved"
 		sUbo.outlineSize = opts.shaderParams.outlineSize;
 		sUbo.outlineDepth = opts.shaderParams.zNear * opts.shaderParams.outlineDepth;
+		sUbo.outlineRnd = opts.shaderParams.outlineRndMorph;
 		sUbo.lightLevels = opts.shaderParams.celLightLevels;
 		rpass.setStaticUbo(sUbo);
 	}

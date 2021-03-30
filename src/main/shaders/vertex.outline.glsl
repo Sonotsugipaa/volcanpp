@@ -37,6 +37,7 @@ layout(set = 0, binding = 0) uniform StaticUbo {
 	mat4 proj;
 	float outlineSize;
 	float outlineDepth;
+	float outlineRnd;
 	uint lightLevels;
 } staticUbo;
 
@@ -102,7 +103,11 @@ void main_1() {
 	vec4 worldPos = objectPc.modelMat * vec4(in_pos, 1.0);
 	vec3 worldNrm = inverse(transpose(mat3(objectPc.modelMat))) * normalize(in_nrm_smooth);
 
-	worldPos.xyz += worldNrm * staticUbo.outlineSize;
+	float rnd_mul = unnormalize(
+		1 - staticUbo.outlineRnd, 1 + staticUbo.outlineRnd,
+		rnd_f1(in_pos.x + in_pos.y + in_pos.z + modelUbo.rnd));
+
+	worldPos.xyz += rnd_mul * worldNrm * staticUbo.outlineSize;
 
 	vec4 viewPos = frameUbo.view * worldPos;
 	vec3 viewNrm = mat3(frameUbo.view) * worldNrm;

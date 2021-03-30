@@ -44,6 +44,8 @@ namespace vka2 {
 			float outlineSize = 1.0f / 30.0f;
 			// Gap between fragments in order for an edge to have an outline (world units).
 			float outlineDepth = 1.0f / 20.0f;
+			// The maximum variation of an outline vertex (relative to outlineSize, should be >= 0).
+			float outlineRndMorph = 1.0f / 10.0f;
 			// The number of possible light levels when cel shading is enabled.
 			unsigned short celLightLevels = 6;
 		} shaderParams;
@@ -72,13 +74,13 @@ namespace vka2 {
 			float initialPitch = -25.0f;
 			// How many degrees the image has to span vertically.
 			float fov = 100.0f;
-			// How fast the view turns when using the keyboard (degrees / second)
+			// How fast the view turns when using the keyboard (degrees / second).
 			float viewTurnSpeedKey = 1.5f;
-			// How fast the view turns when using the keyboard and the speed modifier is active (degrees / second)
+			// How fast the view turns when using the keyboard and the speed modifier is active (degrees / second).
 			float viewTurnSpeedKeyMod = 3.5f;
-			// How fast the view moves (units / second)
+			// How fast the view moves (units / second).
 			float viewMoveSpeed = 2.0f;
-			// How fast the view moves when the speed modifier is active (units / second)
+			// How fast the view moves when the speed modifier is active (units / second).
 			float viewMoveSpeedMod = 12.0f;
 			// How frequently to render frames (1 / seconds).
 			float frameFrequencyS = 61.0f;

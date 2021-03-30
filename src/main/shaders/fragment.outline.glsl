@@ -37,6 +37,7 @@ layout(set = 0, binding = 0) uniform StaticUbo {
 	mat4 proj;
 	float outlineSize;
 	float outlineDepth;
+	float outlineRnd;
 	uint lightLevels;
 } staticUbo;
 
