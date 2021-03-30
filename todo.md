@@ -6,7 +6,6 @@
 - Use the "useMultisampling" option in the settings file, or remove it
 - Add fullscreenability
 - Move all the Vulkan (and Vulkan C++ bindings) calls away from application_run.cpp
-- Add movement speed modifiers
 
 ## Low priority
 

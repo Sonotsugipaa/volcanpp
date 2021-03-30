@@ -57,6 +57,7 @@ namespace {
 		glm::dvec2 lastCursorPos;
 		unsigned shaderSelector;
 		bool dragView;
+		bool speedMod;
 	};
 
 
@@ -138,7 +139,7 @@ namespace {
 		glm::vec3 position;
 		glm::vec2 orientation;
 		unsigned frameCounter;
-		float turnSpeedKey, moveSpeed;
+		float turnSpeedKey, moveSpeed, moveSpeedMod;
 	};
 
 
@@ -244,6 +245,8 @@ namespace {
 		km[GLFW_KEY_6] = [=](bool press, unsigned) { if(!press) ctrlCtx->shaderSelector = 5; };
 		km[GLFW_KEY_7] = [=](bool press, unsigned) { if(!press) ctrlCtx->shaderSelector = 6; };
 
+		km[GLFW_KEY_LEFT_SHIFT] = [=](bool press, unsigned) { ctrlCtx->speedMod = press; };
+
 		km[GLFW_KEY_ESCAPE] = [=](bool press, unsigned) {
 			glfwSetWindowShouldClose(win, press); };
 
@@ -282,7 +285,7 @@ namespace {
 		dst.ctrlCtx = {
 			.fwdMoveVector = { }, .bcwMoveVector = { },
 			.rotate = { }, .lastCursorPos = { },
-			.shaderSelector = 0, .dragView = false };
+			.shaderSelector = 0, .dragView = false, .speedMod = false };
 		dst.keymap = mk_key_bindings(app.glfwWindow(), &dst.ctrlCtx);
 		dst.glfwCtx = {
 			.keymap = &dst.keymap, .app = &app,
@@ -290,6 +293,7 @@ namespace {
 		dst.rngDistr = std::uniform_real_distribution<float>(0.0f, 1.0f);
 		dst.turnSpeedKey = opts.viewParams.viewTurnSpeedKey;
 		dst.moveSpeed = opts.viewParams.viewMoveSpeed;
+		dst.moveSpeedMod = opts.viewParams.viewMoveSpeedMod;
 		dst.lightDirection = glm::normalize(glm::vec3({
 			opts.worldParams.lightDirection[0],
 			opts.worldParams.lightDirection[1],
@@ -489,7 +493,9 @@ namespace {
 				ctx.orientation.x,
 				glm::vec3(0.0f, 1.0f, 0.0f));
 		} { // Change the current position based on the orientation
-			glm::vec3 deltaPos = ctx.moveSpeed * ctx.glfwCtx.framerateMul *
+			float adjustedMoveSpeed = ctx.ctrlCtx.speedMod?
+				ctx.moveSpeedMod : ctx.moveSpeed;
+			glm::vec3 deltaPos = adjustedMoveSpeed * ctx.glfwCtx.framerateMul *
 				(ctx.ctrlCtx.fwdMoveVector - ctx.ctrlCtx.bcwMoveVector);
 			glm::vec4 deltaPosRotated = glm::transpose(orientationMat) * glm::vec4(deltaPos, 1.0f);
 			ctx.position += glm::vec3(deltaPosRotated);

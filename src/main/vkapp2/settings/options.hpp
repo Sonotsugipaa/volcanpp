@@ -76,6 +76,8 @@ namespace vka2 {
 			float viewTurnSpeedKey = 2.5f;
 			// How fast the view moves (units / second)
 			float viewMoveSpeed = 4.0f;
+			// How fast the view moves when the speed modifier is active (units / second)
+			float viewMoveSpeedMod = 12.0f;
 			// How frequently to render frames (1 / seconds).
 			float frameFrequencyS = 61.0f;
 			// Whether to use the nearest neighbor filter instead of the linear filter when upscaling the rendered image.
