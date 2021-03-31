@@ -217,56 +217,50 @@ namespace {
 	}
 
 
-	/** Key bindings will depend on the window AND the control scheme context,
-	 * so they must be must stay alive as long as these key bindings can
-	 * be used by GLFW. */
-	Keymap mk_key_bindings(GLFWwindow* win, CtrlSchemeContext* ctrlCtx) {
+	/** Key bindings will depend on the application AND the control scheme
+	 * context, so they must be must stay alive as long as these key bindings
+	 * can be used by GLFW. */
+	Keymap mk_key_bindings(GLFWwindow*& win, CtrlSchemeContext* ctrlCtx) {
 		Keymap km;
 
-		km[GLFW_KEY_S] = [=](bool press, unsigned) {
-			ctrlCtx->fwdMoveVector.z = press? 1.0f : 0.0f; };
-		km[GLFW_KEY_W] = [=](bool press, unsigned) {
-			ctrlCtx->bcwMoveVector.z = press? 1.0f : 0.0f; };
-		km[GLFW_KEY_D] = [=](bool press, unsigned) {
-			ctrlCtx->fwdMoveVector.x = press? 1.0f : 0.0f; };
-		km[GLFW_KEY_A] = [=](bool press, unsigned) {
-			ctrlCtx->bcwMoveVector.x = press? 1.0f : 0.0f; };
-		km[GLFW_KEY_R] = [=](bool press, unsigned) {
-			ctrlCtx->bcwMoveVector.y = press? 1.0f : 0.0f; };
-		km[GLFW_KEY_F] = [=](bool press, unsigned) {
-			ctrlCtx->fwdMoveVector.y = press? 1.0f : 0.0f; };
+		#define MAP_KEY(_K) km[_K] = [ctrlCtx, &win]([[maybe_unused]] bool pressed, [[maybe_unused]] unsigned mod)
 
-		km[GLFW_KEY_ENTER] = [=](bool press, unsigned mod) {
-			if((! press) && (mod & GLFW_MOD_ALT)) {
+		MAP_KEY(GLFW_KEY_S) { ctrlCtx->fwdMoveVector.z = pressed? 1.0f : 0.0f; };
+		MAP_KEY(GLFW_KEY_W) { ctrlCtx->bcwMoveVector.z = pressed? 1.0f : 0.0f; };
+		MAP_KEY(GLFW_KEY_D) { ctrlCtx->fwdMoveVector.x = pressed? 1.0f : 0.0f; };
+		MAP_KEY(GLFW_KEY_A) { ctrlCtx->bcwMoveVector.x = pressed? 1.0f : 0.0f; };
+		MAP_KEY(GLFW_KEY_R) { ctrlCtx->bcwMoveVector.y = pressed? 1.0f : 0.0f; };
+		MAP_KEY(GLFW_KEY_F) { ctrlCtx->fwdMoveVector.y = pressed? 1.0f : 0.0f; };
+
+		MAP_KEY(GLFW_KEY_ENTER) {
+			if((! pressed) && (mod & GLFW_MOD_ALT)) {
 				ctrlCtx->toggleFullscreen = true; }
 		};
 
-		km[GLFW_KEY_RIGHT] = [=](bool press, unsigned) {
-			ctrlCtx->rotate.x = press? +1.0f : 0.0f; };
-		km[GLFW_KEY_LEFT] = [=](bool press, unsigned) {
-			ctrlCtx->rotate.x = press? -1.0f : 0.0f; };
-		km[GLFW_KEY_UP] = [=](bool press, unsigned) {
-			ctrlCtx->rotate.y = press? +1.0f : 0.0f; };
-		km[GLFW_KEY_DOWN] = [=](bool press, unsigned) {
-			ctrlCtx->rotate.y = press? -1.0f : 0.0f; };
+		MAP_KEY(GLFW_KEY_RIGHT) { ctrlCtx->rotate.x = pressed? +1.0f : 0.0f; };
+		MAP_KEY(GLFW_KEY_LEFT)  { ctrlCtx->rotate.x = pressed? -1.0f : 0.0f; };
+		MAP_KEY(GLFW_KEY_UP)    { ctrlCtx->rotate.y = pressed? +1.0f : 0.0f; };
+		MAP_KEY(GLFW_KEY_DOWN)  { ctrlCtx->rotate.y = pressed? -1.0f : 0.0f; };
 
-		km[GLFW_KEY_1] = [=](bool press, unsigned) { if(!press) ctrlCtx->shaderSelector = 0; };
-		km[GLFW_KEY_2] = [=](bool press, unsigned) { if(!press) ctrlCtx->shaderSelector = 1; };
-		km[GLFW_KEY_3] = [=](bool press, unsigned) { if(!press) ctrlCtx->shaderSelector = 2; };
-		km[GLFW_KEY_4] = [=](bool press, unsigned) { if(!press) ctrlCtx->shaderSelector = 3; };
-		km[GLFW_KEY_5] = [=](bool press, unsigned) { if(!press) ctrlCtx->shaderSelector = 4; };
-		km[GLFW_KEY_6] = [=](bool press, unsigned) { if(!press) ctrlCtx->shaderSelector = 5; };
-		km[GLFW_KEY_7] = [=](bool press, unsigned) { if(!press) ctrlCtx->shaderSelector = 6; };
+		MAP_KEY(GLFW_KEY_1) { if(!pressed) ctrlCtx->shaderSelector = 0; };
+		MAP_KEY(GLFW_KEY_2) { if(!pressed) ctrlCtx->shaderSelector = 1; };
+		MAP_KEY(GLFW_KEY_3) { if(!pressed) ctrlCtx->shaderSelector = 2; };
+		MAP_KEY(GLFW_KEY_4) { if(!pressed) ctrlCtx->shaderSelector = 3; };
+		MAP_KEY(GLFW_KEY_5) { if(!pressed) ctrlCtx->shaderSelector = 4; };
+		MAP_KEY(GLFW_KEY_6) { if(!pressed) ctrlCtx->shaderSelector = 5; };
+		MAP_KEY(GLFW_KEY_7) { if(!pressed) ctrlCtx->shaderSelector = 6; };
 
-		km[GLFW_KEY_LEFT_SHIFT] = [=](bool press, unsigned) { ctrlCtx->speedMod = press; };
+		MAP_KEY(GLFW_KEY_LEFT_SHIFT) { ctrlCtx->speedMod = pressed; };
 
-		km[GLFW_KEY_ESCAPE] = [=](bool press, unsigned) {
-			glfwSetWindowShouldClose(win, press); };
+		MAP_KEY(GLFW_KEY_ESCAPE) {
+			glfwSetWindowShouldClose(win, pressed); };
 
-		km[GLFW_MOUSE_BUTTON_LEFT] = [=](bool press, unsigned) {
-			ctrlCtx->dragView = press;
+		km[GLFW_MOUSE_BUTTON_LEFT] = [ctrlCtx, &win](bool pressed, unsigned) {
+			ctrlCtx->dragView = pressed;
 			glfwGetCursorPos(win, &ctrlCtx->lastCursorPos.x, &ctrlCtx->lastCursorPos.x);
 		};
+
+		#undef MAP_KEY
 
 		return km;
 	}
@@ -303,9 +297,6 @@ namespace {
 			.shaderSelector = 0, .dragView = false, .speedMod = false,
 			.toggleFullscreen = false };
 		dst.keymap = mk_key_bindings(app.glfwWindow(), &dst.ctrlCtx);
-		dst.glfwCtx = {
-			.keymap = &dst.keymap, .app = &app,
-			.ctrlCtx = &dst.ctrlCtx, .framerateMul = 1.0f / opts.viewParams.frameFrequencyS };
 		dst.rngDistr = std::uniform_real_distribution<float>(0.0f, 1.0f);
 		dst.turnSpeedKey = opts.viewParams.viewTurnSpeedKey;
 		dst.turnSpeedKeyMod = opts.viewParams.viewTurnSpeedKeyMod;
@@ -409,6 +400,10 @@ namespace {
 			MAX_CONCURRENT_FRAMES, onSwpchnOod);
 		buildPipelines();
 
+		dst.glfwCtx = {
+			.keymap = &dst.keymap, .app = &app,
+			.ctrlCtx = &dst.ctrlCtx, .frameTiming = &dst.frameTiming };
+
 		set_user_controls(dst, app.glfwWindow());
 		set_static_ubo(dst.rpass, opts);
 	}
@@ -425,6 +420,10 @@ namespace {
 		destroy_render_ctx_rpass(ctx);
 		app.setFullscreen(! app.runtime().fullscreen);
 		create_render_ctx_rpass(app, ctx, opts);
+		for(Object& obj : ctx.objects) {
+			obj.mdlWr.recreateDescSet(
+				ctx.rpass.descriptorPool(), ctx.rpass.descriptorSetLayouts()[ubo::Model::set]);
+		}
 	}
 
 
@@ -513,19 +512,10 @@ namespace {
 
 
 	void process_input(
-			Application& app, const Options& opts,
 			RenderContext& ctx, glm::mat4& orientationMat
 	) {
 		constexpr auto rad360 = glm::radians(360.0f);
-		{ // Check if the window should switch to fullscreen or windowed mode
-			if(ctx.ctrlCtx.toggleFullscreen) {
-				util::logVkEvent() << "Setting "
-					<< (app.runtime().fullscreen? "windowed " : "fullscreen ")
-					<< "mode" << util::endl;
-				toggle_fullscreen(app, ctx, opts);
-				ctx.ctrlCtx.toggleFullscreen = false;
-			}
-		} { // Modify the current orientation based on the input state
+		{ // Modify the current orientation based on the input state
 			float adjustedTurnSpeed = ctx.ctrlCtx.speedMod?
 				ctx.turnSpeedKeyMod : ctx.turnSpeedKey;
 			glm::vec2 actualRotate = {
@@ -548,6 +538,23 @@ namespace {
 				(ctx.ctrlCtx.fwdMoveVector - ctx.ctrlCtx.bcwMoveVector);
 			glm::vec4 deltaPosRotated = glm::transpose(orientationMat) * glm::vec4(deltaPos, 1.0f);
 			ctx.position += glm::vec3(deltaPosRotated);
+		}
+	}
+
+
+	bool try_change_fullscreen(
+			Application& app, const Options& opts,
+			RenderContext& ctx
+	) {
+		if(ctx.ctrlCtx.toggleFullscreen) {
+			util::logVkEvent() << "Setting "
+				<< (app.runtime().fullscreen? "windowed " : "fullscreen ")
+				<< "mode" << util::endl;
+			toggle_fullscreen(app, ctx, opts);
+			ctx.ctrlCtx.toggleFullscreen = false;
+			return true;
+		} else {
+			return false;
 		}
 	}
 
@@ -620,7 +627,9 @@ namespace vka2 {
 				while(! glfwWindowShouldClose(_data.glfwWin)) {
 					mat4 orientationMat = mat4(1.0f);
 					glfwPollEvents();
-					process_input(*this, opts, ctx, orientationMat);
+					process_input(ctx, orientationMat);
+					if(try_change_fullscreen(*this, opts, ctx)) {
+						continue; }
 					auto draw = [&ctx](
 							RenderPass::FrameHandle& fh, vk::CommandBuffer cmd,
 							const Object& obj, const push_const::Object& objPushConst,

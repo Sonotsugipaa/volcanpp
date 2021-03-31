@@ -2,6 +2,10 @@
 
 ## High priority
 
+- Refactor how window recreation is handled for Application::run
+  - Currently there's no real structure to how certain runtime resources
+    (i.e. fields of RenderContext) are handled, and issues with them are
+    dealt as they pop up
 - Use the "useMultisampling" option in the settings file, or remove it
 - Move all the Vulkan (and Vulkan C++ bindings) calls away from application_run.cpp
 

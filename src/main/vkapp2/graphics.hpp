@@ -546,7 +546,7 @@ namespace vka2 {
 		GETTER_POD      (_data.presentQueue,    presentQueue           )
 		GETTER_REF      (_data.transferCmdPool, transferCommandPool    )
 		GETTER_REF      (_data.graphicsCmdPool, graphicsCommandPool    )
-		GETTER_PTR      (_data.glfwWin,         glfwWindow             )
+		GETTER_REF      (_data.glfwWin,         glfwWindow             )
 		GETTER_REF      (_data.swapchain,       swapchain              )
 		GETTER_POD      (_data.surface,         surface                )
 		GETTER_REF_CONST(_data.surfaceCapabs,   surfaceCapabilities    )
