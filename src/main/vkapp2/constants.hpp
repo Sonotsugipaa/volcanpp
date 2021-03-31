@@ -45,9 +45,20 @@ namespace vka2 {
 
 		constexpr float LINE_WIDTH = 1.0f;
 
-		constexpr unsigned ESTIMATED_MAX_MODEL_COUNT = 2<<6; // Used to allocate a static amount of descriptor bindings/sets
+		/** Used to allocate a static amount of descriptor bindings/sets. */
+		constexpr unsigned ESTIMATED_MAX_MODEL_COUNT = 2<<6;
 
 		constexpr float YAW_TO_PITCH_RATIO = 2.0f / 3.0f;
+
+		/** The main thread has to sleep for an arbitrary amount of time
+		 * in order to throttle the frame rate: it is computed as
+		 * `frametime / SLEEPS_PER_FRAME`, and it's ideally slightly higher
+		 * than an integer number in order to account for non-deterministic
+		 * inaccuracies.
+		 *
+		 * Higher numbers result in more precise frame times, but causes
+		 * the main thread to trigger more context switches. */
+		constexpr float SLEEPS_PER_FRAME = 3.05f;
 
 	}
 

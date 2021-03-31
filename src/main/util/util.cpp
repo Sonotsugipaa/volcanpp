@@ -238,6 +238,11 @@ namespace util {
 		return NOW_NS >= _last + x;
 	}
 
+
+	TimeGateNs::precision_t TimeGateNs::now() const {
+		return _last;
+	}
+
 #undef NOW_NS
 }
 

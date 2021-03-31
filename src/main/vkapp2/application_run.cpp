@@ -50,6 +50,12 @@ namespace {
 	using Keymap = std::map<keycode_t, KeyBinding>;
 
 
+	struct FrameTiming {
+		/** How many seconds a CPU frame is supposed to last. */
+		float frameTime;
+	};
+
+
 	struct CtrlSchemeContext {
 		glm::vec3 fwdMoveVector; // Only stores positive XYZ input
 		glm::vec3 bcwMoveVector; // Only stores negative XYZ input
@@ -66,7 +72,7 @@ namespace {
 		Keymap* keymap;
 		Application* app;
 		CtrlSchemeContext* ctrlCtx;
-		float framerateMul;
+		FrameTiming* frameTiming;
 	};
 
 
@@ -122,6 +128,7 @@ namespace {
 	/* Structure containing what would be variables
 	 * into the main function of interest. */
 	struct RenderContext {
+		FrameTiming frameTiming;
 		CtrlSchemeContext ctrlCtx;
 		GlfwContext glfwCtx;
 		Keymap keymap;
@@ -288,6 +295,8 @@ namespace {
 
 	void init_render_ctx_pod(Application& app, RenderContext& dst) {
 		const auto& opts = app.options();
+		dst.frameTiming = FrameTiming {
+			.frameTime = 1.0f / opts.viewParams.frameFrequencyS };
 		dst.ctrlCtx = {
 			.fwdMoveVector = { }, .bcwMoveVector = { },
 			.rotate = { }, .lastCursorPos = { },
@@ -522,7 +531,7 @@ namespace {
 			glm::vec2 actualRotate = {
 				ctx.ctrlCtx.rotate.x,
 				ctx.ctrlCtx.rotate.y * YAW_TO_PITCH_RATIO };
-			ctx.orientation += adjustedTurnSpeed * actualRotate * ctx.glfwCtx.framerateMul;
+			ctx.orientation += adjustedTurnSpeed * actualRotate * ctx.frameTiming.frameTime;
 			ctx.orientation.x -= std::floor(ctx.orientation.x / rad360) * rad360;
 			ctx.orientation.y -= std::floor(ctx.orientation.y / rad360) * rad360;
 		} { // Rotate the orientation matrix
@@ -535,7 +544,7 @@ namespace {
 		} { // Change the current position based on the orientation
 			float adjustedMoveSpeed = ctx.ctrlCtx.speedMod?
 				ctx.moveSpeedMod : ctx.moveSpeed;
-			glm::vec3 deltaPos = adjustedMoveSpeed * ctx.glfwCtx.framerateMul *
+			glm::vec3 deltaPos = adjustedMoveSpeed * ctx.frameTiming.frameTime *
 				(ctx.ctrlCtx.fwdMoveVector - ctx.ctrlCtx.bcwMoveVector);
 			glm::vec4 deltaPosRotated = glm::transpose(orientationMat) * glm::vec4(deltaPos, 1.0f);
 			ctx.position += glm::vec3(deltaPosRotated);
@@ -595,9 +604,11 @@ namespace vka2 {
 		using glm::vec4;
 		using glm::mat4;
 		const auto& opts = _data.options;
-		RenderContext ctx { };
+		RenderContext ctx = { };
 		std::vector<push_const::Object> objPushConsts;
 		create_render_ctx(*this, ctx, opts);
+		util::TimeGateNs timer;
+		double sleepTime = ctx.frameTiming.frameTime / SLEEPS_PER_FRAME;
 		{
 			{
 				{
@@ -642,7 +653,12 @@ namespace vka2 {
 								draw(fh, cmd, ctx.objects[i], objPushConsts[i], ctx.outlinePipeline); }
 						})
 					});
-					util::sleep_s(ctx.glfwCtx.framerateMul);
+					{ // Framerate throttle
+						auto timeMul = decltype(timer)::period_t::den / decltype(timer)::period_t::num;
+						decltype(timer)::precision_t frameTimeUnits = ctx.frameTiming.frameTime * timeMul;
+						while(! timer.forward(frameTimeUnits)) {
+							util::sleep_s(sleepTime); }
+					}
 					++ctx.frameCounter;
 				}
 			}

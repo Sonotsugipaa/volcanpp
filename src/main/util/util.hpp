@@ -184,17 +184,31 @@ namespace util {
 		public:
 			TimeGate();
 
-			/* Check if X nanoseconds have passed;
-			* if so, advance the internal counter by X+Y. */
+			/** Check if X nanoseconds have passed;
+			 * if so, advance the internal counter by X+Y. */
 			bool forward(decltype(_last) x, decltype(_last) y = 0);
 
-			/* Check if X nanoseconds have passed;
-			* if so, set the internal counter to the current time. */
+			/** Check if X nanoseconds have passed;
+			 * if so, set the internal counter to the current time. */
 			bool set(decltype(_last) x = 0);
 
-			/* Check if X nanoseconds have passed; the TimeGate's
-			* internal counter is not altered. */
+			/** Check if X nanoseconds have passed; the TimeGate's
+			 * internal counter is not altered. */
 			bool check(decltype(_last) x) const;
+
+			/** Returns an arbitrary number, so that the return values of two
+			 * consecutive calls will be the approximate difference in time
+			 * between the first call and the second one expressed in
+			 * nanoseconds. The returned value is always the same for multiple
+			 * calls before another non-const member function is called - thus,
+			 * this function is reentrant.
+			 *
+			 * No guarantee is made on the point of reference of the returned
+			 * values, except that it is consistent throughout the object's
+			 * lifetime.
+			 *
+			 * @returns The current value of the internal counter. */
+			precision_t now() const;
 		};
 
 		using TimeGateNs = TimeGate<std::nano>;
@@ -209,26 +223,42 @@ namespace util {
 
 			TimeGate(): TimeGateNs() { }
 
-			/* Check if X time units have passed;
-			* if so, advance the internal counter by X+Y. */
+			/** Check if X time units have passed;
+			 * if so, advance the internal counter by X+Y. */
 			bool forward(decltype(_last) x, decltype(_last) y = 0) {
 				x = x * _convert_p_t::den / _convert_p_t::num;
 				y = y * _convert_p_t::den / _convert_p_t::num;
 				return TimeGateNs::forward(x, y);
 			}
 
-			/* Check if X time units have passed;
-			* if so, set the internal counter to the current time. */
+			/** Check if X time units have passed;
+			 * if so, set the internal counter to the current time. */
 			bool set(decltype(_last) x = 0) {
 				x = x * _convert_p_t::den / _convert_p_t::num;
 				return TimeGateNs::set(x);
 			}
 
-			/* Check if X time units have passed; the TimeGate's
-			* internal counter is not altered. */
+			/** Check if X time units have passed; the TimeGate's
+			 * internal counter is not altered. */
 			bool check(decltype(_last) x) const {
 				x = x * _convert_p_t::den / _convert_p_t::num;
 				return TimeGateNs::check(x);
+			}
+
+			/** Returns an arbitrary number, so that the return values of two
+			 * consecutive calls will be the approximate difference in time
+			 * between the first call and the second one expressed in
+			 * time units. The returned value is always the same for multiple
+			 * calls before another non-const member function is called - thus,
+			 * this function is reentrant.
+			 *
+			 * No guarantee is made on the point of reference of the returned
+			 * values, except that it is consistent throughout the object's
+			 * lifetime.
+			 *
+			 * @returns The current value of the internal counter. */
+			precision_t now() const {
+				return (TimeGateNs::now() * _convert_p_t::num) / _convert_p_t::den;
 			}
 		};
 
