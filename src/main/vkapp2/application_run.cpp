@@ -417,8 +417,16 @@ namespace {
 
 
 	void toggle_fullscreen(Application& app, RenderContext& ctx, const Options& opts) {
+		bool newFullscreenValue = ! app.runtime().fullscreen;
+		vk::Extent2D newExtent;
+		{
+			const auto& extentArray = newFullscreenValue?
+				opts.windowParams.fullscreenExtent :
+				opts.windowParams.windowExtent;
+			newExtent = vk::Extent2D(extentArray[0], extentArray[1]);
+		}
 		destroy_render_ctx_rpass(ctx);
-		app.setFullscreen(! app.runtime().fullscreen);
+		app.setWindowMode(newFullscreenValue, newExtent);
 		create_render_ctx_rpass(app, ctx, opts);
 		for(Object& obj : ctx.objects) {
 			obj.mdlWr.recreateDescSet(

@@ -62,8 +62,10 @@ namespace vka2 {
 			bool normalNearestFilter:1 = true;
 		} worldParams;
 		struct WindowParams {
-			// Size of the window.
+			// Size of the window; each value must be strictly >= 1.
 			std::array<unsigned, 2> windowExtent = { 1200, 900 };
+			// Size of the surface in fullscreen mode; { 0, 0 } to let the application decide.
+			std::array<unsigned, 2> fullscreenExtent = { 0, 0 };
 			// How many pixels can be rendered vertically.
 			unsigned short maxVerticalResolution = std::numeric_limits<unsigned short>::max();
 			// Whether to start the application in fullscreen mode

@@ -8,6 +8,8 @@
     dealt as they pop up
 - Use the "useMultisampling" option in the settings file, or remove it
 - Move all the Vulkan (and Vulkan C++ bindings) calls away from application_run.cpp
+- Refactor Application::data_t::options to Molise (the joke is that it will
+  not exist after refactoring)
 
 ## Low priority
 
@@ -22,6 +24,17 @@
 - Implement dynamic model LOD
 - Add outline color to the push constant
 - Port to Visual Studio, if possible at all
+- Add R8G8B8 image format support
+  - This is tough, because it is apparently not uncommon for devices
+    to have more inclusive support for RGBA than RGB - which
+    means this task is either going to be discarded, or to create a
+    RGB-to-RGBA blit procedure
+    - Should this task be discarded, the relevant functions should be
+      removed from `graphics.hpp`
+- Use an environmental variable to locate `params.cfg` and `scene.cfg`
+  - `params.cfg` should be searched for in the current working directory
+    by default, lest it doesn't serve its purpose of defining default
+    locations for assets and shaders
 
 ## Bug fixes
 

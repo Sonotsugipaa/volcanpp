@@ -485,7 +485,7 @@ namespace vka2 {
 		void destroy();
 
 	private:
-		void _create_window(bool fullscreen);
+		void _create_window(bool fullscreen, const vk::Extent2D&);
 		void _destroy_window();
 
 		void _create_swapchain();
@@ -503,7 +503,7 @@ namespace vka2 {
 		/* After a call to this, all references to this object's
 		 * old swapchain are invalid: Application::rebuildSwapChain
 		 * is called. *//**/
-		void setFullscreen(bool);
+		void setWindowMode(bool fullscreen, const vk::Extent2D& newExtent);
 
 
 		const vk::FormatProperties& getFormatProperties(vk::Format) const noexcept;

@@ -36,6 +36,13 @@ namespace vka2 {
 		constexpr std::array<unsigned, 3> VKA2_APP_VERSION = { 0, 2, 0 };
 		constexpr std::array<unsigned, 3> VKA2_ENGINE_VERSION = { 0, 2, 0 };
 
+		/* Runtime checks are performed to see if a resolution is valid.
+		 * Using a window extent higher than RESOLUTION_HARD_LIMIT
+		 * should throw an exception before allocating unreasonably huge
+		 * swapchain images: being unsafe about this kind of thing
+		 * caused many system soft-locking driver crashes already. */
+		constexpr unsigned RESOLUTION_HARD_LIMIT = (2<<15)-1;
+
 		constexpr const char* CONFIG_FILE = "params.cfg";
 
 		constexpr const char* SHADER_PATH_ENV_VAR_NAME = "VKA2_SHADER_PATH";
