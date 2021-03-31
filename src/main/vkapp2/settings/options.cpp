@@ -145,6 +145,7 @@ namespace vka2 {
 		GET_SETTING_ARRAY(windowParams, fullscreenExtent, unsigned);
 		GET_SETTING(windowParams, maxVerticalResolution, unsigned);
 		GET_SETTING(windowParams, initFullscreen, bool);
+		GET_SETTING(windowParams, useMultisampling, bool);
 		GET_SETTING_ARRAY(viewParams, initialPosition, float);
 		GET_SETTING(viewParams, initialPitch, float);
 		GET_SETTING(viewParams, fov, float);
@@ -154,7 +155,6 @@ namespace vka2 {
 		GET_SETTING(viewParams, viewMoveSpeedMod, float);
 		GET_SETTING(viewParams, frameFrequencyS, float);
 		GET_SETTING(viewParams, upscaleNearestFilter, bool);
-		GET_SETTING(viewParams, useMultisampling, bool);
 		#undef GET_SETTING
 		#undef GET_SETTING_ARRAY
 		cfg.writeFile(path.c_str());

@@ -397,7 +397,8 @@ namespace {
 			fit_extent_height(
 				app.options().windowParams.maxVerticalResolution,
 				app.swapchain().data.extent),
-			MAX_CONCURRENT_FRAMES, onSwpchnOod);
+			MAX_CONCURRENT_FRAMES, opts.windowParams.useMultisampling,
+			onSwpchnOod);
 		buildPipelines();
 
 		dst.glfwCtx = {

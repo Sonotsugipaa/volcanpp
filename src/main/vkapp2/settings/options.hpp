@@ -70,6 +70,8 @@ namespace vka2 {
 			unsigned short maxVerticalResolution = std::numeric_limits<unsigned short>::max();
 			// Whether to start the application in fullscreen mode
 			bool initFullscreen:1 = false;
+			// Use multisampling.
+			bool useMultisampling:1 = false;
 		} windowParams;
 		struct ViewParams {
 			// The initial view position.
@@ -90,8 +92,6 @@ namespace vka2 {
 			float frameFrequencyS = 60.0f;
 			// Whether to use the nearest neighbor filter instead of the linear filter when upscaling the rendered image.
 			bool upscaleNearestFilter:1 = true;
-			// Use multisampling.
-			bool useMultisampling:1 = false;
 		} viewParams;
 
 

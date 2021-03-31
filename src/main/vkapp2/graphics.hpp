@@ -391,6 +391,7 @@ namespace vka2 {
 			vk::DescriptorPool descPool;
 			ImageAlloc depthStencilImg;
 			vk::ImageView depthStencilImgView;
+			bool useMultisampling;
 		} _data;
 		struct rendering_t {
 			uint_fast32_t frame;
@@ -416,6 +417,7 @@ namespace vka2 {
 			AbstractSwapchain&,
 			vk::Extent2D renderExtent,
 			unsigned short maxConcurrentFrames,
+			bool useMultisampling,
 			SwapchainOutdatedCallback);
 
 		RenderPass& operator=(RenderPass&&) = default;

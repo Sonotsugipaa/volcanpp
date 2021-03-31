@@ -389,7 +389,8 @@ namespace {
 		runtimePtr->depthOptimalFmt = select_depthstencil_format(pDev, false);
 		runtimePtr->samplerAnisotropy = pDevProps.limits.maxSamplerAnisotropy;
 		runtimePtr->fullscreen = opts.windowParams.initFullscreen;
-		{
+		runtimePtr->bestSampleCount = vk::SampleCountFlagBits::e1;
+		if(opts.windowParams.useMultisampling) {
 			auto supportedSamples =
 				pDevProps.limits.framebufferColorSampleCounts &
 				pDevProps.limits.framebufferDepthSampleCounts;
@@ -404,8 +405,10 @@ namespace {
 			TRY_SAMPLES(e2); else
 			runtimePtr->bestSampleCount = vk::SampleCountFlagBits::e1;
 			#undef TRY_SAMPLES
-			util::logVkDebug() << "Best upported sample count is "
+			util::logVkDebug() << "Best supported sample count is "
 				<< util::enum_str(runtimePtr->bestSampleCount) << util::endl;
+		} else {
+			util::logVkDebug() << "Not using MSAA" << util::endl;
 		}
 	}
 

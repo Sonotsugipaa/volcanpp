@@ -93,7 +93,6 @@ namespace {
 			vk::Image img, vk::Extent2D ext,
 			unsigned levels, vk::Filter filter
 	) {
-		util::logVkDebug() << "Generating " << levels << " mipmaps" << util::endl;
 		vk::ImageMemoryBarrier bar;
 		vk::ImageBlit blit;
 		bar.image = img;
@@ -146,14 +145,7 @@ namespace {
 	vk::Filter select_mip_filter(Application& app, vk::Format fmt) {
 		const auto& fmtProps = app.getFormatProperties(fmt);
 		if(fmtProps.optimalTilingFeatures & vk::FormatFeatureFlagBits::eSampledImageFilterLinear) {
-			util::logVkDebug()
-				<< "Format " << util::enum_str(fmt)
-				<< " supports optimal tiling linear filter" << util::endl;
-			return vk::Filter::eLinear;
-		}
-		util::logVkDebug()
-			<< "Format " << util::enum_str(fmt)
-			<< " doesn't support optimal tiling linear filter" << util::endl;
+			return vk::Filter::eLinear; }
 		return vk::Filter::eNearest;
 	}
 
@@ -242,9 +234,6 @@ namespace {
 		vk::SamplerCreateInfo scInfo;
 		scInfo.anisotropyEnable = app.runtime().samplerAnisotropy > 1;
 		scInfo.maxAnisotropy = scInfo.anisotropyEnable? app.runtime().samplerAnisotropy : 1;
-		util::logVkDebug()
-			<< "Sampler with anisotropy " << (scInfo.anisotropyEnable? "en" : "dis") << "abled ("
-			<< scInfo.maxAnisotropy << ')' << util::endl;
 		scInfo.borderColor = vk::BorderColor::eIntOpaqueBlack;
 		scInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
 		scInfo.minLod = minLod;
