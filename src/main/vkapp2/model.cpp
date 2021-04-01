@@ -159,11 +159,9 @@ namespace {
 			auto found = matCache->find(src.mdlName);
 			if(found != matCache->end()) {
 				r.mat = found->second;
-				util::logDebug() << "Found cached texture \"" << src.mdlName << '"' << util::endl;
 			} else {
 				r.mat = (*matCache)[src.mdlName] = std::make_shared<Material>(load_material(
 					app, src.textureLoader));
-				util::logDebug() << "Cached new texture \"" << src.mdlName << '"' << util::endl;
 			}
 		} { // Load the data
 			tinyobj::ObjReader reader;
@@ -265,7 +263,7 @@ namespace {
 			size_t vtxSize = r.vtx.size() * sizeof(Vertex);
 			size_t idxSize = r.idx.size() * sizeof(Vertex::index_t);
 			util::logDebug()
-				<< "Model has " << r.idx.size() << " vertices ("
+				<< "Model \"" << src.mdlName << "\" has " << r.idx.size() << " vertices ("
 				<< vtxSize << '+' << idxSize << " = " << static_cast<size_t>(
 					std::ceil(static_cast<float>(vtxSize + idxSize) / (1024.0f*1024.0f))
 				) << "MiB)" << util::endl;
@@ -288,11 +286,7 @@ namespace vka2 {
 			// Try to find an existing model before proceeding with the loading procedure
 			auto found = mdlCache->find(src.mdlName);
 			if(found != mdlCache->end()) {
-				util::logDebug() << "Found cached model \"" << src.mdlName << '"' << util::endl;
-				return found->second;
-			} else {
-				util::logDebug() << "Model \"" << src.mdlName << "\" is not cached" << util::endl;
-			}
+				return found->second; }
 		} {
 			auto mdlData = mk_model_from_obj(app, src, mergeVertices, matCache);
 			auto r = std::make_shared<Model>(app,
