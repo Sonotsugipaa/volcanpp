@@ -349,64 +349,71 @@ namespace {
 			Application& app,
 			RenderContext& dst, const Options& opts
 	) {
-		CtrlSchemeContext* dstCtrlCtx = &dst.ctrlCtx;
-		RenderPass* dstRpass = &dst.rpass;
-		Pipeline* dstMainPl = &dst.mainPipeline;
-		Pipeline* dstOutlinePl = &dst.outlinePipeline;
-		auto* dstObjects = &dst.objects;
-		const auto* dstShaders = &dst.shaders;
-		auto sampleCount = app.runtime().bestSampleCount;
+		{ // Create the render pass
+			CtrlSchemeContext* dstCtrlCtx = &dst.ctrlCtx;
+			RenderPass* dstRpass = &dst.rpass;
+			Pipeline* dstMainPl = &dst.mainPipeline;
+			Pipeline* dstOutlinePl = &dst.outlinePipeline;
+			auto* dstObjects = &dst.objects;
+			const auto* dstShaders = &dst.shaders;
+			auto sampleCount = app.runtime().bestSampleCount;
 
-		std::function buildPipelines = [
-				dstRpass, dstMainPl, dstOutlinePl, dstShaders,
-				sampleCount
-		] () {
-			*dstMainPl = Pipeline(*dstRpass,
-				dstShaders->mainVtx, dstShaders->mainFrg, "main", 0,
-				false, dstRpass->renderExtent(), sampleCount);
-			*dstOutlinePl = Pipeline(*dstRpass,
-				dstShaders->outlineVtx, dstShaders->outlineFrg, "main", 1,
-				true, dstRpass->renderExtent(), sampleCount);
-		};
+			std::function buildPipelines = [
+					dstRpass, dstMainPl, dstOutlinePl, dstShaders,
+					sampleCount
+			] () {
+				*dstMainPl = Pipeline(*dstRpass,
+					dstShaders->mainVtx, dstShaders->mainFrg, "main", 0,
+					false, dstRpass->renderExtent(), sampleCount);
+				*dstOutlinePl = Pipeline(*dstRpass,
+					dstShaders->outlineVtx, dstShaders->outlineFrg, "main", 1,
+					true, dstRpass->renderExtent(), sampleCount);
+			};
 
-		RenderPass::SwapchainOutdatedCallback onSwpchnOod = [
-				buildPipelines, dstCtrlCtx, dstMainPl, dstOutlinePl,
-				dstObjects
-		] (
-				RenderPass& rpass
-		) {
-			static_assert(ubo::Model::set == Texture::samplerDescriptorSet);
-			constexpr auto descSetIdx = ubo::Model::set;
-			assert(rpass.swapchain()->application != nullptr);
-			auto* app = rpass.swapchain()->application;
-			dstMainPl->destroy();
-			dstOutlinePl->destroy();
-			app->rebuildSwapChain();
-			rpass.reassign(app->swapchain(), fit_extent_height(
-				app->options().windowParams.maxVerticalResolution,
-				app->swapchain().data.extent));
+			RenderPass::SwapchainOutdatedCallback onSwpchnOod = [
+					buildPipelines, dstCtrlCtx, dstMainPl, dstOutlinePl,
+					dstObjects
+			] (
+					RenderPass& rpass
+			) {
+				static_assert(ubo::Model::set == Texture::samplerDescriptorSet);
+				constexpr auto descSetIdx = ubo::Model::set;
+				assert(rpass.swapchain()->application != nullptr);
+				auto* app = rpass.swapchain()->application;
+				dstMainPl->destroy();
+				dstOutlinePl->destroy();
+				app->rebuildSwapChain();
+				rpass.reassign(app->swapchain(), fit_extent_height(
+					app->options().windowParams.maxVerticalResolution,
+					app->swapchain().data.extent));
+				buildPipelines();
+				set_static_ubo(rpass, app->options());
+				for(Object& obj : (*dstObjects)) {
+					obj.mdlWr.recreateDescSet(
+						rpass.descriptorPool(), rpass.descriptorSetLayouts()[descSetIdx]);
+				}
+			};
+
+			dst.rpass = RenderPass(app.swapchain(),
+				fit_extent_height(
+					app.options().windowParams.maxVerticalResolution,
+					app.swapchain().data.extent),
+				MAX_CONCURRENT_FRAMES, opts.windowParams.useMultisampling,
+				onSwpchnOod);
 			buildPipelines();
-			set_static_ubo(rpass, app->options());
-			for(Object& obj : (*dstObjects)) {
+		} { // Assign and adjust everything that depends on the render pass
+			dst.glfwCtx = {
+				.keymap = &dst.keymap, .app = &app,
+				.ctrlCtx = &dst.ctrlCtx, .frameTiming = &dst.frameTiming };
+
+			set_user_controls(dst, app.glfwWindow());
+			set_static_ubo(dst.rpass, opts);
+
+			for(Object& obj : dst.objects) {
 				obj.mdlWr.recreateDescSet(
-					rpass.descriptorPool(), rpass.descriptorSetLayouts()[descSetIdx]);
+					dst.rpass.descriptorPool(), dst.rpass.descriptorSetLayouts()[ubo::Model::set]);
 			}
-		};
-
-		dst.rpass = RenderPass(app.swapchain(),
-			fit_extent_height(
-				app.options().windowParams.maxVerticalResolution,
-				app.swapchain().data.extent),
-			MAX_CONCURRENT_FRAMES, opts.windowParams.useMultisampling,
-			onSwpchnOod);
-		buildPipelines();
-
-		dst.glfwCtx = {
-			.keymap = &dst.keymap, .app = &app,
-			.ctrlCtx = &dst.ctrlCtx, .frameTiming = &dst.frameTiming };
-
-		set_user_controls(dst, app.glfwWindow());
-		set_static_ubo(dst.rpass, opts);
+		}
 	}
 
 
@@ -429,10 +436,6 @@ namespace {
 		destroy_render_ctx_rpass(ctx);
 		app.setWindowMode(newFullscreenValue, newExtent);
 		create_render_ctx_rpass(app, ctx, opts);
-		for(Object& obj : ctx.objects) {
-			obj.mdlWr.recreateDescSet(
-				ctx.rpass.descriptorPool(), ctx.rpass.descriptorSetLayouts()[ubo::Model::set]);
-		}
 	}
 
 
