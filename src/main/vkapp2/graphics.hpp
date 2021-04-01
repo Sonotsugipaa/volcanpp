@@ -46,7 +46,8 @@
 #define GETTER_REF(_F, _M)  decltype(_F)& _M(){return _F;}  GETTER_REF_CONST(_F, _M)
 #define GETTER_PTR_CONST(_F, _M)  const std::remove_reference<decltype(*_F)>::type* _M()const{return _F;}
 #define GETTER_PTR(_F, _M)  std::remove_reference<decltype(*_F)>::type* _M(){return _F;}  GETTER_PTR_CONST(_F, _M)
-#define GETTER_POD(_F, _M) decltype(_F) _M()const{return _F;}
+#define GETTER_VAL_CONST(_F, _M) const decltype(_F) _M()const{return _F;}
+#define GETTER_VAL(_F, _M) decltype(_F) _M()const{return _F;}
 
 
 
@@ -138,7 +139,7 @@ namespace vka2 {
 		GETTER_REF(_app,       application)
 		GETTER_REF(_img,       imgBuffer  )
 		GETTER_REF(_img_view,  imgView    )
-		GETTER_POD(_sampler,   sampler    )
+		GETTER_VAL(_sampler,   sampler    )
 	};
 
 
@@ -203,9 +204,9 @@ namespace vka2 {
 
 		GETTER_REF(_app,       application)
 		GETTER_REF(_vtx,       vtxBuffer  )
-		GETTER_POD(_vtx_count, vtxCount   )
+		GETTER_VAL(_vtx_count, vtxCount   )
 		GETTER_REF(_idx,       idxBuffer  )
-		GETTER_POD(_idx_count, idxCount   )
+		GETTER_VAL(_idx_count, idxCount   )
 		GETTER_REF(_ubo,       uboBuffer  )
 
 		inline const Material& material() const { return *_mat.get(); }
@@ -255,7 +256,7 @@ namespace vka2 {
 			std::function<void (vk::CommandBuffer)>,
 			vk::Fence = nullptr);
 
-		GETTER_POD(_pool, handle)
+		GETTER_VAL(_pool, handle)
 	};
 
 
@@ -426,6 +427,7 @@ namespace vka2 {
 
 		GETTER_REF      (_data.swpchnImages,   swapchainImages     )
 		GETTER_PTR      (_swapchain,           swapchain           )
+		GETTER_VAL_CONST(_data.handle,         handle              )
 		GETTER_REF      (_data.descPool,       descriptorPool      )
 		GETTER_REF      (_data.pipelineLayout, pipelineLayout      )
 		GETTER_REF      (_data.descsetLayouts, descriptorSetLayouts)
@@ -446,9 +448,9 @@ namespace vka2 {
 		 * Calls to this function must NOT be done asynchronously. */
 		bool runRenderPass(
 			const ubo::Frame& frameUbo,
-			PreRenderFunction, // Can be `{ }`
-			PostRenderFunction, // Can be `{ }`
-			std::vector<RenderFunction>);
+			PreRenderFunction /* Can be `{ }` */,
+			PostRenderFunction /* Can be `{ }` */,
+			std::array<RenderFunction, 2> /* Main pipeline, outline pipeline */);
 
 	};
 
@@ -538,19 +540,19 @@ namespace vka2 {
 		void unmapBuffer(VmaAllocation&);
 
 
-		GETTER_POD      (_vk_instance,          vulkanInstance         )
-		GETTER_POD      (_data.pDev,            physDevice             )
-		GETTER_POD      (_data.dev,             device                 )
-		GETTER_POD      (_data.alloc,           allocator              )
+		GETTER_VAL      (_vk_instance,          vulkanInstance         )
+		GETTER_VAL      (_data.pDev,            physDevice             )
+		GETTER_VAL      (_data.dev,             device                 )
+		GETTER_VAL      (_data.alloc,           allocator              )
 		GETTER_REF_CONST(_data.queues,          queues                 )
 		GETTER_REF_CONST(_data.qFamIdx,         queueFamilyIndices     )
-		GETTER_POD      (_data.qFamIdxPresent,  presentQueueFamilyIndex)
-		GETTER_POD      (_data.presentQueue,    presentQueue           )
+		GETTER_VAL      (_data.qFamIdxPresent,  presentQueueFamilyIndex)
+		GETTER_VAL      (_data.presentQueue,    presentQueue           )
 		GETTER_REF      (_data.transferCmdPool, transferCommandPool    )
 		GETTER_REF      (_data.graphicsCmdPool, graphicsCommandPool    )
 		GETTER_REF      (_data.glfwWin,         glfwWindow             )
 		GETTER_REF      (_data.swapchain,       swapchain              )
-		GETTER_POD      (_data.surface,         surface                )
+		GETTER_VAL      (_data.surface,         surface                )
 		GETTER_REF_CONST(_data.surfaceCapabs,   surfaceCapabilities    )
 		GETTER_REF_CONST(_data.surfaceFmt,      surfaceFormat          )
 		GETTER_REF      (_data.options,         options                )
@@ -565,4 +567,5 @@ namespace vka2 {
 #undef GETTER_REF
 #undef GETTER_PTR_CONST
 #undef GETTER_PTR
-#undef GETTER_POD
+#undef GETTER_VAL_CONST
+#undef GETTER_VAL

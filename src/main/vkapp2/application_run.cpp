@@ -662,7 +662,7 @@ namespace vka2 {
 					mk_frame_ubo(ctx, orientationMat, frameUbo);
 					objPushConsts.clear();
 					mk_obj_push_const(ctx.objects, objPushConsts);
-					ctx.rpass.runRenderPass(frameUbo, { }, { }, std::vector {
+					ctx.rpass.runRenderPass(frameUbo, { }, { }, {
 						std::function([&](RenderPass::FrameHandle& fh, vk::CommandBuffer cmd) {
 							assert(objPushConsts.size() == ctx.objects.size());
 							for(size_t i=0; i < ctx.objects.size(); ++i) {

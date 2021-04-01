@@ -532,6 +532,55 @@ namespace {
 		dev.updateDescriptorSets(wdSet, { });
 	}
 
+
+	void record_render_cmds(
+			RenderPass& rPass,
+			RenderPass::PreRenderFunction& preRender,
+			RenderPass::PostRenderFunction& postRender,
+			std::array<RenderPass::RenderFunction, 2>& renderFunctions,
+			RenderPass::ImageData& img, RenderPass::FrameData& frame,
+			vk::CommandBuffer primaryCmd
+	) {
+		assert(renderFunctions.size() == /* the number of subpasses */ 2);
+		vk::CommandBufferInheritanceInfo cbiInfo;
+		vk::CommandBufferBeginInfo cbbInfo;
+		unsigned subpass = 0;
+		unsigned iterations = renderFunctions.size() - 1; // Last iteration does not .nextSubpass(...)
+		RenderPass::FrameHandle fh = { rPass, frame, img };
+		cbiInfo.setRenderPass(rPass.handle());
+		cbiInfo.setFramebuffer(img.framebuffer);
+		cbiInfo.setOcclusionQueryEnable(false);
+		cbbInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit | vk::CommandBufferUsageFlagBits::eRenderPassContinue);
+		cbbInfo.setPInheritanceInfo(&cbiInfo);
+		const auto runSubpass = [
+				primaryCmd, img,
+				&rPass, &cbiInfo, &cbbInfo, &frame, &fh
+		] (unsigned subpass, RenderPass::RenderFunction& fn) {
+			const auto& secBuffer = img.secondaryDrawBuffers[subpass];
+			cbiInfo.setSubpass(subpass);
+			secBuffer.begin(cbbInfo);
+			secBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+				rPass.pipelineLayout(), ubo::Frame::set,
+				img.frameDescSet,
+				{ });
+			secBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+				rPass.pipelineLayout(), ubo::Static::set,
+				img.staticDescSet,
+				{ });
+			fn(fh, secBuffer);
+			secBuffer.end();
+			primaryCmd.executeCommands(secBuffer);
+		};
+		if(preRender)  preRender(fh);
+		for(unsigned i=0; i < iterations; ++i) {
+			runSubpass(subpass, renderFunctions[i]);
+			primaryCmd.nextSubpass(vk::SubpassContents::eSecondaryCommandBuffers);
+			++subpass;
+		}
+		runSubpass(subpass, renderFunctions.back());
+		if(postRender)  postRender(fh);
+	}
+
 }
 
 
@@ -694,7 +743,7 @@ namespace vka2 {
 			const ubo::Frame& frameUbo,
 			PreRenderFunction preRender,
 			PostRenderFunction postRender,
-			std::vector<RenderFunction> renderFunctions
+			std::array<RenderFunction, 2> renderFunctions
 	) {
 		vk::Device dev = _swapchain->application->device();
 		unsigned imgIndex; // Swapchain image
@@ -802,44 +851,9 @@ namespace vka2 {
 					memcpy(frameUboPtr, &frameUbo, sizeof(ubo::Frame));  static_assert(std::is_same_v<ubo::Frame, std::remove_const_t<std::remove_reference_t<decltype(frameUbo)>>>);
 					vmaUnmapMemory(_swapchain->application->allocator(), img->second.frameUbo.alloc);
 				} {
-					assert(renderFunctions.size() == /* the number of subpasses */ 2);
-					vk::CommandBufferInheritanceInfo cbiInfo;
-					vk::CommandBufferBeginInfo cbbInfo;
-					unsigned subpass = 0;
-					unsigned iterations = renderFunctions.size() - 1; // Last iteration does not .nextSubpass(...)
-					FrameHandle fh = { *this, frame, img->second };
-					cbiInfo.setRenderPass(_data.handle);
-					cbiInfo.setFramebuffer(img->second.framebuffer);
-					cbiInfo.setOcclusionQueryEnable(false);
-					cbbInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit | vk::CommandBufferUsageFlagBits::eRenderPassContinue);
-					cbbInfo.setPInheritanceInfo(&cbiInfo);
-					const auto runSubpass = [
-							this, renderCmd, img,
-							&cbiInfo, &cbbInfo, &frame, &fh
-					] (unsigned subpass, RenderFunction& fn) {
-						const auto& secBuffer = img->second.secondaryDrawBuffers[subpass];
-						cbiInfo.setSubpass(subpass);
-						secBuffer.begin(cbbInfo);
-						secBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
-							_data.pipelineLayout, ubo::Frame::set,
-							img->second.frameDescSet,
-							{ });
-						secBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
-							_data.pipelineLayout, ubo::Static::set,
-							img->second.staticDescSet,
-							{ });
-						fn(fh, secBuffer);
-						secBuffer.end();
-						renderCmd.executeCommands(secBuffer);
-					};
-					if(preRender)  preRender(fh);
-					for(unsigned i=0; i < iterations; ++i) {
-						runSubpass(subpass, renderFunctions[i]);
-						renderCmd.nextSubpass(vk::SubpassContents::eSecondaryCommandBuffers);
-						++subpass;
-					}
-					runSubpass(subpass, renderFunctions.back());
-					if(postRender)  postRender(fh);
+					record_render_cmds(*this,
+						preRender, postRender, renderFunctions,
+						img->second, frame, renderCmd);
 				}
 			} { // End the render pass
 				renderCmd.endRenderPass();
