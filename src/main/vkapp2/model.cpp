@@ -259,14 +259,9 @@ namespace {
 				for(auto& vtx : r.vtx) {
 					vtx.tanv = glm::cross(vtx.nrm, vtx.tanu); }
 			}
-		} {
-			size_t vtxSize = r.vtx.size() * sizeof(Vertex);
-			size_t idxSize = r.idx.size() * sizeof(Vertex::index_t);
-			util::logDebug()
-				<< "Model \"" << src.mdlName << "\" has " << r.idx.size() << " vertices ("
-				<< vtxSize << '+' << idxSize << " = " << static_cast<size_t>(
-					std::ceil(static_cast<float>(vtxSize + idxSize) / (1024.0f*1024.0f))
-				) << "MiB)" << util::endl;
+		} { // Eventually post-process vertices
+			if(src.postAssembly) {
+				src.postAssembly(r.vtx, r.idx); }
 		}
 		return r;
 	}

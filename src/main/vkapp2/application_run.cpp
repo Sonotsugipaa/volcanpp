@@ -492,6 +492,15 @@ namespace {
 						default: throw std::logic_error("invalid value of vka2::Texture::Usage");
 					}
 				};
+				src.postAssembly = [&src](Vertices& vtx, Indices& idx) {
+					size_t vtxSize = vtx.size() * sizeof(Vertex);
+					size_t idxSize = idx.size() * sizeof(Vertex::index_t);
+					util::logDebug()
+						<< "Model \"" << src.mdlName << "\" has " << idx.size() << " vertices ("
+						<< vtxSize << '+' << idxSize << " = " << static_cast<size_t>(
+							std::ceil(static_cast<float>(vtxSize + idxSize) / (1024.0f*1024.0f))
+						) << "MiB)" << util::endl;
+				};
 				dst.objects.push_back(std::move(Object {
 					.mdlWr = ModelWrapper(
 						Model::fromObj(app, src,

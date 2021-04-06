@@ -172,6 +172,7 @@ namespace vka2 {
 			std::string mdlName; // Used for caches:
 			std::string objPath;
 			std::function<Texture (Texture::Usage)> textureLoader;
+			std::function<void (Vertices&, Indices&)> postAssembly;
 		};
 
 
