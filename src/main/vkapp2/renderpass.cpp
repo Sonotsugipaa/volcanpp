@@ -87,14 +87,7 @@ namespace {
 			std::vector<vk::DescriptorSetLayout>& dsLayouts
 	) {
 		vk::PipelineLayoutCreateInfo plcInfo;
-		vk::PushConstantRange pcRange;
-		pcRange.stageFlags = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment;
-		pcRange.offset = 0;
-		pcRange.size = sizeof(push_const::Object);
-		assert(pcRange.size < MAX_PUSH_CONST_BYTES);
 		plcInfo.setSetLayouts(dsLayouts);
-		plcInfo.setPushConstantRangeCount(1);
-		plcInfo.setPPushConstantRanges(&pcRange);
 		return dev.createPipelineLayout(plcInfo);
 	}
 

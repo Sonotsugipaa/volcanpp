@@ -39,6 +39,10 @@
 
 namespace vka2 {
 
+	extern const std::array<vk::VertexInputBindingDescription, 2> VTX_BINDING_DESCS;
+	extern const std::array<vk::VertexInputAttributeDescription, 12> VTX_ATTRIB_DESCS;
+
+
 	/** Simple POD for application managed vk::Buffer allocations. */
 	struct BufferAlloc {
 		vk::Buffer handle;
@@ -64,9 +68,6 @@ namespace vka2 {
 		using index_t = uint32_t;
 		const static vk::IndexType INDEX_TYPE = vk::IndexType::eUint32;
 
-		const static vk::VertexInputBindingDescription BINDING_DESC;
-		const static std::array<vk::VertexInputAttributeDescription, 6> ATTRIB_DESC;
-
 		glm::vec3 pos;
 		glm::vec3 nrm;
 		glm::vec3 nrm_smooth; // Always smoothed normal, required for the outline
@@ -80,6 +81,13 @@ namespace vka2 {
 
 	using Vertices = std::vector<Vertex>;
 	using Indices = std::vector<Vertex::index_t>;
+
+
+	struct Instance {
+		glm::mat4 modelTransf;
+		glm::vec4 colorMul; // May differ between the main pipeline and the outline pipeline
+		float rnd; // Different for every object
+	};
 
 
 

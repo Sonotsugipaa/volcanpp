@@ -81,35 +81,32 @@ namespace {
 
 namespace vka2 {
 
-	const decltype(Vertex::BINDING_DESC) Vertex::BINDING_DESC = []() {
-		vk::VertexInputBindingDescription r;
-		r.binding = 0;
-		r.stride = sizeof(Vertex);
-		r.inputRate = vk::VertexInputRate::eVertex;
-		return r;
+	const decltype(VTX_BINDING_DESCS) VTX_BINDING_DESCS = []() {
+		return decltype(VTX_BINDING_DESCS) {
+			vk::VertexInputBindingDescription(0, sizeof(Vertex), vk::VertexInputRate::eVertex),
+			vk::VertexInputBindingDescription(1, sizeof(Instance), vk::VertexInputRate::eInstance) };
 	} ();
 
-
-	const decltype(Vertex::ATTRIB_DESC) Vertex::ATTRIB_DESC = []() {
-		std::array<vk::VertexInputAttributeDescription, 6> r;
-		r[0].  binding = 0;  r[0].location = 0;
-		r[0]  .format = vk::Format::eR32G32B32Sfloat;
-		r[0]  .offset = offsetof(Vertex, pos);
-		r[1].  binding = 0;  r[1].location = 1;
-		r[1]  .format = vk::Format::eR32G32B32Sfloat;
-		r[1]  .offset = offsetof(Vertex, nrm);
-		r[2].  binding = 0;  r[2].location = 2;
-		r[2]  .format = vk::Format::eR32G32B32Sfloat;
-		r[2]  .offset = offsetof(Vertex, nrm_smooth);
-		r[3].  binding = 0;  r[3].location = 3;
-		r[3]  .format = vk::Format::eR32G32B32Sfloat;
-		r[3]  .offset = offsetof(Vertex, tanu);
-		r[4].  binding = 0;  r[4].location = 4;
-		r[4]  .format = vk::Format::eR32G32B32Sfloat;
-		r[4]  .offset = offsetof(Vertex, tanv);
-		r[5].  binding = 0;  r[5].location = 5;
-		r[5]  .format = vk::Format::eR32G32Sfloat;
-		r[5]  .offset = offsetof(Vertex, tex);
+	const decltype(VTX_ATTRIB_DESCS) VTX_ATTRIB_DESCS = []() {
+		std::array<vk::VertexInputAttributeDescription, 12> r;
+		#define _ATTRIB(_BINDING, _LOCATION, _FORMAT, _OFFSET) \
+			r[_LOCATION].  binding = _BINDING;  r[_LOCATION].location = _LOCATION; \
+			r[_LOCATION]  .format = _FORMAT; \
+			r[_LOCATION]  .offset = _OFFSET;
+		// --
+			_ATTRIB(0,  0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, pos))
+			_ATTRIB(0,  1, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, nrm))
+			_ATTRIB(0,  2, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, nrm_smooth))
+			_ATTRIB(0,  3, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, tanu))
+			_ATTRIB(0,  4, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, tanv))
+			_ATTRIB(0,  5, vk::Format::eR32G32Sfloat, offsetof(Vertex, tex))
+			_ATTRIB(1,  6, vk::Format::eR32G32B32A32Sfloat, offsetof(Instance, modelTransf) + (0 * sizeof(glm::vec4)))
+			_ATTRIB(1,  7, vk::Format::eR32G32B32A32Sfloat, offsetof(Instance, modelTransf) + (1 * sizeof(glm::vec4)))
+			_ATTRIB(1,  8, vk::Format::eR32G32B32A32Sfloat, offsetof(Instance, modelTransf) + (2 * sizeof(glm::vec4)))
+			_ATTRIB(1,  9, vk::Format::eR32G32B32A32Sfloat, offsetof(Instance, modelTransf) + (3 * sizeof(glm::vec4)))
+			_ATTRIB(1, 10, vk::Format::eR32G32B32A32Sfloat, offsetof(Instance, colorMul))
+			_ATTRIB(1, 11, vk::Format::eR32Sfloat, offsetof(Instance, rnd))
+		#undef _ATTRIB
 		return r;
 	} ();
 
@@ -137,8 +134,8 @@ namespace vka2 {
 					vk::ShaderStageFlagBits::eFragment,_data.frgShader, shaderEntryPoint) };
 
 			vk::PipelineVertexInputStateCreateInfo viscInfo;
-			viscInfo.setVertexAttributeDescriptions(Vertex::ATTRIB_DESC);
-			viscInfo.setVertexBindingDescriptions(Vertex::BINDING_DESC);
+			viscInfo.setVertexAttributeDescriptions(VTX_ATTRIB_DESCS);
+			viscInfo.setVertexBindingDescriptions(VTX_BINDING_DESCS);
 
 			vk::PipelineInputAssemblyStateCreateInfo iascInfo;
 			iascInfo.topology = vk::PrimitiveTopology::eTriangleList;
