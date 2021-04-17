@@ -94,6 +94,23 @@ namespace vka2 {
 			vk::Format::eX8D24UnormPack32
 		};
 
+
+
+		namespace push_const {
+
+			#define SPIRV_ALIGNED(_T) alignas(spirv::align<_T>) _T
+			#define ASSERT_SIZE(_T) static_assert(sizeof(_T) < MAX_PUSH_CONST_BYTES)
+
+			struct Object {
+				SPIRV_ALIGNED(glm::mat4)  modelTransf;
+				SPIRV_ALIGNED(glm::vec4)  colorMul; // May differ between the main pipeline and the outline pipeline
+				SPIRV_ALIGNED(float)      rnd; // Different for every object
+			};  ASSERT_SIZE(Object);
+
+			#undef SPIRV_ALIGNED
+
+		}
+
 	}
 
 }

@@ -21,7 +21,7 @@
 # SOFTWARE.
 
 
-# Add locally used includes (should not be shupped)
+# Add locally used includes (should not be shipped)
 include_directories(.)
 
 # Add all component source directories

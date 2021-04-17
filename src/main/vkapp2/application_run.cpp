@@ -86,17 +86,10 @@ namespace {
 	public:
 		ModelWrapper(): _mdl() { }
 
-		ModelWrapper(Model::ShPtr mdl): _mdl(std::move(mdl)) { }
-
-		ModelWrapper(
-				Model::ShPtr mdl,
-				vk::DescriptorPool dPool, vk::DescriptorSetLayout dSetLayout
-		):
+		ModelWrapper(Model::ShPtr mdl, vk::DescriptorPool dPool, vk::DescriptorSetLayout dSetLayout):
 				_mdl(std::move(mdl))
 		{
-			assert(dPool != decltype(dPool)(nullptr));
-			assert(dSetLayout != decltype(dSetLayout)(nullptr));
-			createDescSet(dPool, dSetLayout);
+			recreateDescSet(dPool, dSetLayout);
 		}
 
 		ModelWrapper(ModelWrapper&& mov):
@@ -108,7 +101,7 @@ namespace {
 
 		vk::DescriptorSet descSet() const { return _dSet; }
 
-		void createDescSet(
+		void recreateDescSet(
 				vk::DescriptorPool dPool,
 				vk::DescriptorSetLayout dSetLayout
 		) {
@@ -124,8 +117,6 @@ namespace {
 
 	struct Object {
 		ModelWrapper mdlWr;
-		BufferAlloc instanceBuffer;
-		Instance* instanceMmap;
 		glm::vec3 position;
 		glm::vec3 orientation;
 		glm::vec3 scale;
@@ -398,7 +389,7 @@ namespace {
 				buildPipelines();
 				set_static_ubo(rpass, app->options());
 				for(Object& obj : (*dstObjects)) {
-					obj.mdlWr.createDescSet(
+					obj.mdlWr.recreateDescSet(
 						rpass.descriptorPool(), rpass.descriptorSetLayouts()[descSetIdx]);
 				}
 			};
@@ -419,7 +410,7 @@ namespace {
 			set_static_ubo(dst.rpass, opts);
 
 			for(Object& obj : dst.objects) {
-				obj.mdlWr.createDescSet(
+				obj.mdlWr.recreateDescSet(
 					dst.rpass.descriptorPool(), dst.rpass.descriptorSetLayouts()[ubo::Model::set]);
 			}
 		}
@@ -448,8 +439,9 @@ namespace {
 	}
 
 
-	void create_objects(Application& app, RenderContext& dst) {
+	void load_ctx_assets(Application& app, RenderContext& dst) {
 		static_assert(ubo::Model::set == Texture::samplerDescriptorSet);
+		constexpr auto mdlDescSetLayoutIndex = ubo::Model::set;
 		std::map<std::string, Scene::Model*> mdlInfoMap;
 		std::string assetPath = get_asset_path();
 		auto& worldOpts = app.options().worldParams;
@@ -465,17 +457,6 @@ namespace {
 		} { // Create objects
 			for(auto& objInfo : scene.objects) {
 				Model::ObjSources src;
-				BufferAlloc instanceBuffer;
-				{
-					vk::BufferCreateInfo instanceBcInfo;
-					instanceBcInfo.setSharingMode(vk::SharingMode::eExclusive);
-					instanceBcInfo.setSize(sizeof(Instance));
-					instanceBcInfo.setUsage(vk::BufferUsageFlagBits::eVertexBuffer);
-					vk::MemoryPropertyFlags instanceReqFlags =
-						vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent;
-					vk::MemoryPropertyFlagBits instancePrfFlags = vk::MemoryPropertyFlagBits::eDeviceLocal;
-					instanceBuffer = app.createBuffer(instanceBcInfo, instanceReqFlags, instancePrfFlags);  util::alloc_tracker.alloc("Object:instanceBuffer");
-				}
 				src.mdlName = objInfo.modelName;
 				src.objPath = assetPath + "/"s + src.mdlName + ".obj";
 				src.textureLoader = [&app, &src, &worldOpts, &assetPath](Texture::Usage usage) {
@@ -505,10 +486,10 @@ namespace {
 					.mdlWr = ModelWrapper(
 						Model::fromObj(app, src,
 							mdlInfoMap[objInfo.modelName]->mergeVertices,
-							&dst.mdlCache, &dst.matCache)
+							&dst.mdlCache, &dst.matCache),
+						dst.rpass.descriptorPool(),
+						dst.rpass.descriptorSetLayouts()[mdlDescSetLayoutIndex]
 					),
-					.instanceBuffer = instanceBuffer,
-					.instanceMmap = app.mapBuffer<Instance>(instanceBuffer.alloc),
 					.position = glm::vec3(objInfo.position[0], objInfo.position[1], objInfo.position[2]),
 					.orientation = glm::vec3(objInfo.orientation[0], objInfo.orientation[1], objInfo.orientation[2]),
 					.scale = glm::vec3(objInfo.scale[0], objInfo.scale[1], objInfo.scale[2]),
@@ -535,28 +516,19 @@ namespace {
 	}
 
 
-	void destroy_objects(Application& app, RenderContext& ctx) {
-		for(auto& obj : ctx.objects) {
-			app.unmapBuffer(obj.instanceBuffer.alloc);
-			app.destroyBuffer(obj.instanceBuffer);  util::alloc_tracker.dealloc("Object:instanceBuffer");
-		}
-	}
-
-
 	void create_render_ctx(
 			Application& app,
 			RenderContext& dst, const Options& opts
 	) {
 		init_render_ctx_pod(app, dst);
-		create_objects(app, dst);
 		read_ctx_shaders(app, dst);
 		create_render_ctx_rpass(app, dst, opts);
+		load_ctx_assets(app, dst);
 	}
 
 
-	void destroy_render_ctx(Application& app, RenderContext& ctx) {
+	void destroy_render_ctx(RenderContext& ctx) {
 		destroy_render_ctx_rpass(ctx);
-		destroy_objects(app, ctx);
 	}
 
 
@@ -608,23 +580,27 @@ namespace {
 	}
 
 
-	void update_instances(
-			const std::vector<Object>& objects
+	void mk_obj_push_const(
+			const std::vector<Object>& objects,
+			std::vector<push_const::Object>& dst
 	) {
+		dst.reserve(dst.size() + objects.size());
 		for(const auto& obj : objects) {
-			Instance& instance = *obj.instanceMmap;
-			instance.modelTransf = glm::mat4(1.0f);
-			instance.modelTransf = glm::translate(instance.modelTransf, obj.position);
-			instance.modelTransf = glm::rotate(instance.modelTransf,
+			push_const::Object newPc;
+			newPc.modelTransf = glm::mat4(1.0f);
+			newPc.modelTransf = glm::translate(newPc.modelTransf, obj.position);
+			newPc.modelTransf = glm::rotate(newPc.modelTransf,
 				glm::radians(obj.orientation.y), glm::vec3(1.0f, 0.0f, 0.0f));
-			instance.modelTransf = glm::rotate(instance.modelTransf,
+			newPc.modelTransf = glm::rotate(newPc.modelTransf,
 				glm::radians(obj.orientation.x), glm::vec3(0.0f, 1.0f, 0.0f));
-			instance.modelTransf = glm::rotate(instance.modelTransf,
+			newPc.modelTransf = glm::rotate(newPc.modelTransf,
 				glm::radians(obj.orientation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-			instance.modelTransf = glm::scale(instance.modelTransf, obj.scale);
-			instance.colorMul = obj.color;
-			instance.rnd = obj.rnd;
+			newPc.modelTransf = glm::scale(newPc.modelTransf, obj.scale);
+			newPc.colorMul = obj.color;
+			newPc.rnd = obj.rnd;
+			dst.push_back(newPc);
 		}
+		assert(dst.size() == objects.size());
 	}
 
 
@@ -657,6 +633,7 @@ namespace vka2 {
 		using glm::mat4;
 		const auto& opts = _data.options;
 		RenderContext ctx = { };
+		std::vector<push_const::Object> objPushConsts;
 		create_render_ctx(*this, ctx, opts);
 		util::TimeGateNs timer;
 		double sleepTime = ctx.frameTiming.frameTime / SLEEPS_PER_FRAME;
@@ -676,12 +653,15 @@ namespace vka2 {
 						continue; }
 					auto draw = [&ctx](
 							RenderPass::FrameHandle& fh, vk::CommandBuffer cmd,
-							const Object& obj, Pipeline& pipeline
+							const Object& obj, const push_const::Object& objPushConst,
+							Pipeline& pipeline
 					) {
+						cmd.pushConstants(ctx.rpass.pipelineLayout(),
+							vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+							0, sizeof(push_const::Object), &objPushConst);
 						cmd.bindPipeline(
 							vk::PipelineBindPoint::eGraphics, pipeline.handle());
 						cmd.bindVertexBuffers(0, obj.mdlWr->vtxBuffer().handle, { 0 });
-						cmd.bindVertexBuffers(1, obj.instanceBuffer.handle, { 0 });
 						cmd.bindIndexBuffer(obj.mdlWr->idxBuffer().handle,
 							0, Vertex::INDEX_TYPE);
 						fh.bindModelDescriptorSet(cmd, obj.mdlWr.descSet());
@@ -689,15 +669,18 @@ namespace vka2 {
 					};
 					ubo::Frame frameUbo;
 					mk_frame_ubo(ctx, orientationMat, frameUbo);
-					update_instances(ctx.objects);
+					objPushConsts.clear();
+					mk_obj_push_const(ctx.objects, objPushConsts);
 					ctx.rpass.runRenderPass(frameUbo, { }, { }, {
-						std::function([&ctx, &draw](RenderPass::FrameHandle& fh, vk::CommandBuffer cmd) {
+						std::function([&](RenderPass::FrameHandle& fh, vk::CommandBuffer cmd) {
+							assert(objPushConsts.size() == ctx.objects.size());
 							for(size_t i=0; i < ctx.objects.size(); ++i) {
-								draw(fh, cmd, ctx.objects[i], ctx.mainPipeline); }
+								draw(fh, cmd, ctx.objects[i], objPushConsts[i], ctx.mainPipeline); }
 						}),
-						std::function([&ctx, &draw](RenderPass::FrameHandle& fh, vk::CommandBuffer cmd) {
+						std::function([&](RenderPass::FrameHandle& fh, vk::CommandBuffer cmd) {
+							assert(objPushConsts.size() == ctx.objects.size());
 							for(size_t i=0; i < ctx.objects.size(); ++i) {
-								draw(fh, cmd, ctx.objects[i], ctx.outlinePipeline); }
+								draw(fh, cmd, ctx.objects[i], objPushConsts[i], ctx.outlinePipeline); }
 						})
 					});
 					{ // Framerate throttle
@@ -710,7 +693,7 @@ namespace vka2 {
 				}
 			}
 		}
-		destroy_render_ctx(*this, ctx);
+		destroy_render_ctx(ctx);
 	}
 
 }

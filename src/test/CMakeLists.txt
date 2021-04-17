@@ -1,4 +1,4 @@
-# Add locally used includes (should not be shupped)
+# Add locally used includes (should not be shipped)
 include_directories(../main)
 include_directories(.)
 

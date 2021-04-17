@@ -27,6 +27,12 @@
 
 
 
+layout(push_constant) uniform ObjectPushConstant {
+	mat4 modelMat;
+	vec4 col;
+	float rnd;
+} objectPc;
+
 layout(set = 0, binding = 0) uniform StaticUbo {
 	mat4 proj;
 	float outlineSize;
@@ -59,15 +65,10 @@ layout(location = 3) in vec3 in_tanu;
 layout(location = 4) in vec3 in_tanv;
 layout(location = 5) in vec2 in_tex;
 
-layout(location =  6) in mat4 in_model_mat;
-layout(location = 10) in vec4 in_col;
-layout(location = 11) in float rnd;
-
 layout(location = 0) out vec2 frg_tex;
 layout(location = 1) out vec3 frg_eyedir_tan;
 layout(location = 2) out vec3 frg_lightdir_tan;
 layout(location = 3) out vec3 frg_nrm_tan;
-layout(location = 4) out vec4 frg_col;
 
 
 
@@ -104,10 +105,10 @@ vec3 rnd_f3(vec3 seed) {
  * 5: Diffuse and specular lighting
  * 6: Diffuse and specular lighting with cel shading and outline */
 void main() {
-	mat4 modelViewMat = frameUbo.view * in_model_mat;
+	mat4 modelViewMat = frameUbo.view * objectPc.modelMat;
 	mat3 modelViewMat3 = mat3(modelViewMat);
-	vec4 worldPos = in_model_mat * vec4(in_pos, 1.0);
-	vec3 worldNrm = inverse(transpose(mat3(in_model_mat))) * normalize(in_nrm);
+	vec4 worldPos = objectPc.modelMat * vec4(in_pos, 1.0);
+	vec3 worldNrm = inverse(transpose(mat3(objectPc.modelMat))) * normalize(in_nrm);
 	vec4 viewPos = modelViewMat * vec4(in_pos, 1.0);
 	vec3 viewTanU = modelViewMat3 * normalize(in_tanu);
 	vec3 viewTanV = modelViewMat3 * normalize(in_tanv);
@@ -119,7 +120,6 @@ void main() {
 	frg_tex = in_tex;
 	frg_nrm_tan = tbnInverse * viewNrm;
 	frg_lightdir_tan = normalize(tbnInverse * mat3(frameUbo.view) * frameUbo.lightDirection);
-	frg_col = in_col;
 
 	switch(frameUbo.shaderSelector) {
 		case 1:

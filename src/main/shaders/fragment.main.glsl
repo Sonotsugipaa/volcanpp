@@ -27,6 +27,12 @@
 
 
 
+layout(push_constant) uniform ObjectPushConstant {
+	mat4 modelMat;
+	vec4 col;
+	float rnd;
+} objectPc;
+
 layout(set = 0, binding = 0) uniform StaticUbo {
 	mat4 proj;
 	float outlineSize;
@@ -59,7 +65,6 @@ layout(location = 0) in vec2 frg_tex;
 layout(location = 1) in vec3 frg_eyedir_tan;
 layout(location = 2) in vec3 frg_lightdir_tan;
 layout(location = 3) in vec3 frg_nrm_tan;
-layout(location = 4) in vec4 frg_col;
 
 layout(location = 0) out vec4 out_col;
 
@@ -124,7 +129,7 @@ void main_0() {
 		modelUbo.minDiffuse, modelUbo.maxDiffuse,
 		dot(-frg_lightdir_tan, frg_nrm_tan)));
 	out_col =
-		texture(tex_dfs_sampler, frg_tex) * frg_col
+		texture(tex_dfs_sampler, frg_tex) * objectPc.col
 		* (diffuse + computeSpecular(frg_lightdir_tan, frg_nrm_tan));
 }
 
@@ -135,7 +140,7 @@ void main_1() {
 
 	out_col =
 		texture(tex_dfs_sampler, frg_tex)
-		* frg_col;
+		* objectPc.col;
 
 	out_col *= diffusion;
 }
@@ -147,7 +152,7 @@ void main_2() {
 
 	out_col =
 		texture(tex_dfs_sampler, frg_tex)
-		* frg_col;
+		* objectPc.col;
 
 	out_col.xyz *= shave(diffusion, 1.0 / float(staticUbo.lightLevels), 0.5);
 
@@ -161,7 +166,7 @@ void main_3() {
 
 	out_col =
 		texture(tex_dfs_sampler, frg_tex)
-		* frg_col;
+		* objectPc.col;
 
 	out_col.xyz *= reflection;
 
@@ -175,7 +180,7 @@ void main_4() {
 
 	out_col =
 		texture(tex_dfs_sampler, frg_tex)
-		* frg_col;
+		* objectPc.col;
 
 	out_col.xyz *= shave(reflection, 1.0 / float(staticUbo.lightLevels), 0.5);
 
@@ -189,7 +194,7 @@ void main_5() {
 		computeDiffusion(frg_lightdir_tan, get_normal_tanspace())
 		+ computeSpecular(frg_lightdir_tan, get_normal_tanspace());
 
-	out_col = texture(tex_dfs_sampler, frg_tex) * frg_col;
+	out_col = texture(tex_dfs_sampler, frg_tex) * objectPc.col;
 	out_col.xyz *= reflection;
 
 	if(out_col.w < 0.01)  discard;
@@ -202,7 +207,7 @@ void main_6() {
 		computeDiffusion(frg_lightdir_tan, get_normal_tanspace())
 		+ computeSpecular(frg_lightdir_tan, get_normal_tanspace());
 
-	out_col = texture(tex_dfs_sampler, frg_tex) * frg_col;
+	out_col = texture(tex_dfs_sampler, frg_tex) * objectPc.col;
 	out_col.xyz *= shave(reflection, 1.0 / float(staticUbo.lightLevels), 0.5);
 
 	if(out_col.w < 0.01)  discard;
