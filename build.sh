@@ -42,7 +42,7 @@ function build {
 			echo 'build.sh: no installation process defined' 1>&2;;
 		*)
 			echo 'Building with profile "'"$1"'"'
-			cmake -DCMAKE_BUILD_TYPE="$1" ../src -G Ninja &&\
+			cmake -DCMAKE_BUILD_TYPE="$1" ../src -G "${generator:='Ninja'}" &&\
 			cmake --build . || return 1;;
 	esac
 }
