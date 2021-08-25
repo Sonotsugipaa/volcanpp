@@ -102,11 +102,12 @@ namespace vka2 {
 			#define ASSERT_SIZE(_T) static_assert(sizeof(_T) < MAX_PUSH_CONST_BYTES)
 
 			struct Object {
-				SPIRV_ALIGNED(glm::mat4)  modelTransf;
-				SPIRV_ALIGNED(glm::vec4)  colorMul; // May differ between the main pipeline and the outline pipeline
-				SPIRV_ALIGNED(float)      rnd; // Different for every object
-			};  ASSERT_SIZE(Object);
+				static constexpr bool unused = true;
+			};
 
+			ASSERT_SIZE(Object);
+
+			#undef ASSERT_SIZE
 			#undef SPIRV_ALIGNED
 
 		}

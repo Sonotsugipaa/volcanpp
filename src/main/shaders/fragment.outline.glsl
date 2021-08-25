@@ -27,12 +27,6 @@
 
 
 
-layout(push_constant) uniform ObjectPushConstant {
-	mat4 modelMat;
-	vec4 col;
-	float rnd;
-} objectPc;
-
 layout(set = 0, binding = 0) uniform StaticUbo {
 	mat4 proj;
 	float outlineSize;

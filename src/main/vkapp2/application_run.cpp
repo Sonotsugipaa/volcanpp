@@ -26,6 +26,7 @@
 
 #include <filesystem>
 #include <random>
+#include <set>
 #include <fstream>
 
 #include "vkapp2/draw.hpp"
@@ -48,6 +49,145 @@ namespace {
 	using keycode_t = int;
 	using KeyBinding = std::function<void (bool isPressed, unsigned modifiers)>;
 	using Keymap = std::map<keycode_t, KeyBinding>;
+
+
+	template<typename T>
+	struct BufferAllocator {
+		using size_type = size_t;
+		using value_type = T;
+		using pointer_type = value_type*;
+		using const_pointer_type = const value_type*;
+
+
+		struct Allocation {
+			BufferAlloc bufferAlloc;
+			pointer_type cpuMapped;
+
+			std::strong_ordering operator<=>(const Allocation& rh) const { return cpuMapped <=> static_cast<const void*>(rh.cpuMapped); }
+			std::weak_ordering operator<=>(const_pointer_type rh) const { return cpuMapped <=> static_cast<const void*>(rh); }
+
+			operator pointer_type() { return cpuMapped; }
+			operator const_pointer_type() const { return cpuMapped; }
+		};
+
+		struct State {
+			Application* app;
+			vk::BufferUsageFlags usage;
+			VmaMemoryUsage memoryUsage;
+			vk::MemoryPropertyFlags requiredFlags;
+			vk::MemoryPropertyFlags preferredFlags;
+			std::set<Allocation, std::less<>> pool;
+		};
+
+		std::shared_ptr<State> state;
+
+		BufferAllocator(): state(std::make_shared<State>()) { }
+
+		BufferAllocator(const BufferAllocator&) = default;
+		BufferAllocator(BufferAllocator&&) = default;
+
+		BufferAllocator& operator=(const BufferAllocator&) = default;
+		BufferAllocator& operator=(BufferAllocator&&) = default;
+
+
+		template<typename U>
+		BufferAllocator(const BufferAllocator<U> cp) noexcept:
+				state(cp.state)
+		{ }
+
+
+		void setState(
+				Application& app,
+				vk::BufferUsageFlags usage,
+				vk::MemoryPropertyFlags requiredFlags,
+				vk::MemoryPropertyFlags preferredFlags = vk::MemoryPropertyFlags(0)
+		) {
+			*state = State{&app, usage, { }, requiredFlags, preferredFlags, decltype(State::pool)()};
+		}
+
+		void setState(
+				Application& app,
+				vk::BufferUsageFlags usage,
+				VmaMemoryUsage memoryUsage
+		) {
+			*state = State{&app, usage, memoryUsage, { }, { }, decltype(State::pool)()};
+		}
+
+
+		pointer_type allocate(size_t count) {
+			assert(state != nullptr);
+			assert(state->app != nullptr);
+			pointer_type r;
+			vk::BufferCreateInfo bcInfo = { };
+			BufferAlloc newAlloc;
+			count += count == 0;
+			bcInfo.setSharingMode(vk::SharingMode::eExclusive);
+			bcInfo.setSize(sizeof(value_type) * count);
+			bcInfo.setUsage(state->usage);
+			if(state->memoryUsage == 0) {
+				newAlloc = state->app->createBuffer(bcInfo, state->requiredFlags, state->preferredFlags);
+			} else {
+				newAlloc = state->app->createBuffer(bcInfo, state->memoryUsage);
+			}
+			r = state->app->template mapBuffer<value_type>(newAlloc.alloc);
+			assert(! state->pool.contains(r));
+			state->pool.insert(Allocation { newAlloc, r });
+			util::alloc_tracker.alloc("::BufferAllocator<"s + std::to_string(sizeof(value_type)) + "B>::Allocation"s, count);
+			return r;
+		}
+
+
+		void deallocate(pointer_type ptr, size_t count) {
+			assert(state != nullptr);
+			assert(ptr != nullptr);
+			assert(state->app != nullptr);
+			auto found = state->pool.find(ptr);
+			count += count == 0;
+			assert(found != state->pool.end());
+			assert(state->pool.contains(ptr));
+			assert(found->cpuMapped == ptr);
+			auto bufferAlloc = found->bufferAlloc;
+			state->app->unmapBuffer(bufferAlloc.alloc);
+			state->app->destroyBuffer(bufferAlloc);
+			util::alloc_tracker.dealloc("::BufferAllocator<"s + std::to_string(sizeof(value_type)) + "B>::Allocation"s, count);
+		}
+
+
+		BufferAlloc operator[](pointer_type ptr) {
+			assert(state != nullptr);
+			auto found = state->pool.find(ptr);
+			assert(found != state->pool.end());
+			assert(state->pool.contains(ptr));
+			assert(found->cpuMapped == ptr);
+			return found->bufferAlloc;
+		}
+
+		const BufferAlloc operator[](const_pointer_type ptr) const {
+			assert(state != nullptr);
+			auto found = state->pool.find(ptr);
+			assert(found != state->pool.end());
+			assert(state->pool.contains(ptr));
+			assert(found->cpuMapped == ptr);
+			return found->bufferAlloc;
+		}
+
+		template<typename U> bool operator==(const BufferAllocator<U>& other) const {
+			if(state == nullptr || other.state == nullptr) return state == other.state;
+			return
+				(other.state->app == state->app) &&
+				(other.state->usage == state->usage) &&
+				(other.state->requiredFlags == state->requiredFlags) &&
+				(other.state->preferredFlags == state->preferredFlags) &&
+				(other.state->pool == state->pool);
+		}
+
+		template<typename U> bool operator!=(const BufferAllocator<U>& other) const {
+			return ! operator==(other);
+		}
+	};
+
+	template<typename T>
+	using DeviceVector = std::vector<T, BufferAllocator<T>>;
 
 
 	struct FrameTiming {
@@ -143,6 +283,7 @@ namespace {
 		std::minstd_rand rng;
 		std::uniform_real_distribution<float> rngDistr;
 		std::vector<Object> objects;
+		DeviceVector<Instance> instances;
 		glm::vec3 lightDirection;
 		glm::vec3 position;
 		glm::vec2 orientation;
@@ -302,6 +443,9 @@ namespace {
 		dst.turnSpeedKeyMod = opts.viewParams.viewTurnSpeedKeyMod;
 		dst.moveSpeed = opts.viewParams.viewMoveSpeed;
 		dst.moveSpeedMod = opts.viewParams.viewMoveSpeedMod;
+		dst.instances.get_allocator().setState(app,
+			vk::BufferUsageFlagBits::eVertexBuffer,
+			VMA_MEMORY_USAGE_CPU_TO_GPU);
 		dst.lightDirection = glm::normalize(glm::vec3({
 			opts.worldParams.lightDirection[0],
 			opts.worldParams.lightDirection[1],
@@ -580,27 +724,30 @@ namespace {
 	}
 
 
-	void mk_obj_push_const(
+	void mk_instances(
 			const std::vector<Object>& objects,
-			std::vector<push_const::Object>& dst
+			DeviceVector<Instance>& dst
 	) {
-		dst.reserve(dst.size() + objects.size());
-		for(const auto& obj : objects) {
-			push_const::Object newPc;
-			newPc.modelTransf = glm::mat4(1.0f);
-			newPc.modelTransf = glm::translate(newPc.modelTransf, obj.position);
-			newPc.modelTransf = glm::rotate(newPc.modelTransf,
-				glm::radians(obj.orientation.y), glm::vec3(1.0f, 0.0f, 0.0f));
-			newPc.modelTransf = glm::rotate(newPc.modelTransf,
-				glm::radians(obj.orientation.x), glm::vec3(0.0f, 1.0f, 0.0f));
-			newPc.modelTransf = glm::rotate(newPc.modelTransf,
-				glm::radians(obj.orientation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-			newPc.modelTransf = glm::scale(newPc.modelTransf, obj.scale);
-			newPc.colorMul = obj.color;
-			newPc.rnd = obj.rnd;
-			dst.push_back(newPc);
+		size_t i = 0;
+		if(dst.size() != objects.size()) {
+			dst.resize(objects.size());
 		}
-		assert(dst.size() == objects.size());
+		for(const auto& obj : objects) {
+			Instance& inst = dst[i];
+			inst.modelTransf = glm::mat4(1.0f);
+			inst.modelTransf = glm::translate(inst.modelTransf, obj.position);
+			inst.modelTransf = glm::rotate(inst.modelTransf,
+				glm::radians(obj.orientation.y), glm::vec3(1.0f, 0.0f, 0.0f));
+			inst.modelTransf = glm::rotate(inst.modelTransf,
+				glm::radians(obj.orientation.x), glm::vec3(0.0f, 1.0f, 0.0f));
+			inst.modelTransf = glm::rotate(inst.modelTransf,
+				glm::radians(obj.orientation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+			inst.modelTransf = glm::scale(inst.modelTransf, obj.scale);
+			inst.colorMul = obj.color;
+			inst.rnd = obj.rnd;
+			++i;
+		}
+		assert(i == objects.size());
 	}
 
 
@@ -651,36 +798,36 @@ namespace vka2 {
 					process_input(ctx, orientationMat);
 					if(try_change_fullscreen(*this, opts, ctx)) {
 						continue; }
-					auto draw = [&ctx](
+					ubo::Frame frameUbo;
+					mk_frame_ubo(ctx, orientationMat, frameUbo);
+ctx.objects[0].orientation.x += ctx.frameTiming.frameTime;
+ctx.objects[1].orientation.x += 2 * ctx.frameTiming.frameTime;
+					mk_instances(ctx.objects, ctx.instances);
+					vk::Buffer instanceBuffer = ctx.instances.get_allocator()[ctx.instances.data()].handle;
+					auto draw = [&ctx, instanceBuffer](
 							RenderPass::FrameHandle& fh, vk::CommandBuffer cmd,
-							const Object& obj, const push_const::Object& objPushConst,
+							const Object& obj, uint32_t instanceIdx,
 							Pipeline& pipeline
 					) {
-						cmd.pushConstants(ctx.rpass.pipelineLayout(),
-							vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-							0, sizeof(push_const::Object), &objPushConst);
 						cmd.bindPipeline(
 							vk::PipelineBindPoint::eGraphics, pipeline.handle());
 						cmd.bindVertexBuffers(0, obj.mdlWr->vtxBuffer().handle, { 0 });
+						cmd.bindVertexBuffers(1, instanceBuffer, { 0 });
 						cmd.bindIndexBuffer(obj.mdlWr->idxBuffer().handle,
 							0, Vertex::INDEX_TYPE);
 						fh.bindModelDescriptorSet(cmd, obj.mdlWr.descSet());
-						cmd.drawIndexed(obj.mdlWr->idxCount(), 1, 0, 0, 0);
+						cmd.drawIndexed(obj.mdlWr->idxCount(), 1, 0, 0, instanceIdx);
 					};
-					ubo::Frame frameUbo;
-					mk_frame_ubo(ctx, orientationMat, frameUbo);
-					objPushConsts.clear();
-					mk_obj_push_const(ctx.objects, objPushConsts);
 					ctx.rpass.runRenderPass(frameUbo, { }, { }, {
 						std::function([&](RenderPass::FrameHandle& fh, vk::CommandBuffer cmd) {
-							assert(objPushConsts.size() == ctx.objects.size());
+							assert(ctx.instances.size() == ctx.objects.size());
 							for(size_t i=0; i < ctx.objects.size(); ++i) {
-								draw(fh, cmd, ctx.objects[i], objPushConsts[i], ctx.mainPipeline); }
+								draw(fh, cmd, ctx.objects[i], i, ctx.mainPipeline); }
 						}),
 						std::function([&](RenderPass::FrameHandle& fh, vk::CommandBuffer cmd) {
-							assert(objPushConsts.size() == ctx.objects.size());
+							assert(ctx.instances.size() == ctx.objects.size());
 							for(size_t i=0; i < ctx.objects.size(); ++i) {
-								draw(fh, cmd, ctx.objects[i], objPushConsts[i], ctx.outlinePipeline); }
+								draw(fh, cmd, ctx.objects[i], i, ctx.outlinePipeline); }
 						})
 					});
 					{ // Framerate throttle

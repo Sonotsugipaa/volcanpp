@@ -104,8 +104,8 @@ namespace vka2 {
 			eColor, eNormal, eSpecular
 		};
 
-		constexpr static unsigned samplerDescriptorSet = ubo::Model::set;
-		constexpr static std::array<unsigned, 2> samplerDescriptorBindings = { 1, 2 }; // Diffuse, Normal (+ Reflect in the near future)
+		static constexpr unsigned samplerDescriptorSet = ubo::Model::set;
+		static constexpr std::array<unsigned, 2> samplerDescriptorBindings = { 1, 2 }; // Diffuse, Normal (+ Reflect in the near future)
 
 		struct Data {
 			unsigned width, height, channels;
@@ -522,6 +522,10 @@ namespace vka2 {
 			const vk::BufferCreateInfo&,
 			vk::MemoryPropertyFlags requiredFlags,
 			vk::MemoryPropertyFlags preferedFlags = { });
+
+		BufferAlloc createBuffer(
+			const vk::BufferCreateInfo&,
+			VmaMemoryUsage memUsage);
 
 		void destroyBuffer(BufferAlloc&);
 

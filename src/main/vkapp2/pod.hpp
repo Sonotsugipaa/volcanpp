@@ -74,11 +74,38 @@ namespace vka2 {
 		glm::vec3 tanv; // Bitangent, or tangent aligned with V axis
 		glm::vec2 tex;
 
-		bool operator==(const Vertex& r) const {
-			return 0 == memcmp(this, &r, sizeof(Vertex)); }
+		inline bool operator==(const Vertex& r) const {
+			return
+				(r.pos == pos) &&
+				(r.nrm == nrm) &&
+				(r.nrm_smooth == nrm_smooth) &&
+				(r.tanu == tanu) &&
+				(r.tanv == tanv) &&
+				(r.tex == tex);
+		}
+	};
+
+	struct Instance {
+		using index_t = uint32_t;
+		const static vk::IndexType INDEX_TYPE = vk::IndexType::eUint32;
+
+		const static vk::VertexInputBindingDescription BINDING_DESC;
+		const static std::array<vk::VertexInputAttributeDescription, 6> ATTRIB_DESC;
+
+		glm::mat4  modelTransf;
+		glm::vec4  colorMul;
+		float      rnd;
+
+		inline bool operator==(const Instance& r) const {
+			return
+				(r.modelTransf == modelTransf) &&
+				(r.colorMul == colorMul) &&
+				(r.rnd == rnd);
+		}
 	};
 
 	using Vertices = std::vector<Vertex>;
+	using Instances = std::vector<Instance>;
 	using Indices = std::vector<Vertex::index_t>;
 
 
@@ -109,9 +136,9 @@ namespace vka2 {
 		/* The static Uniform Buffer Object is expected to change
 		 * very infrequently throughout the render pass' lifetime. */
 		struct Static {
-			constexpr static bool dma = false;
-			constexpr static unsigned set = 0;
-			constexpr static unsigned binding = 0;
+			static constexpr bool dma = false;
+			static constexpr unsigned set = 0;
+			static constexpr unsigned binding = 0;
 			SPIRV_ALIGNED(glm::mat4)  projTransf;
 			SPIRV_ALIGNED(float)      outlineSize; // Measured in world units
 			SPIRV_ALIGNED(float)      outlineDepth; // Scales with zNear, unfortunately
@@ -119,14 +146,13 @@ namespace vka2 {
 			SPIRV_ALIGNED(uint32_t)   lightLevels;
 		};
 
-
 		/* The model Uniform Buffer Object holds data that only needs to be
 		 * updated when a model is loaded; it shares the descriptor set
 		 * with combined image samplers for textures. */
 		struct Model {
-			constexpr static bool dma = true;
-			constexpr static unsigned set = 1;
-			constexpr static unsigned binding = 0;
+			static constexpr bool dma = true;
+			static constexpr unsigned set = 1;
+			static constexpr unsigned binding = 0;
 			SPIRV_ALIGNED(float)      minDiffuse;
 			SPIRV_ALIGNED(float)      maxDiffuse;
 			SPIRV_ALIGNED(float)      expSpecular;
@@ -137,9 +163,9 @@ namespace vka2 {
 		/* The frame Uniform Buffer Object, as the name implies, is updated
 		 * every frame. Host visible memory is basically guaranteed. */
 		struct Frame {
-			constexpr static bool dma = true;
-			constexpr static unsigned set = 2;
-			constexpr static unsigned binding = 0;
+			static constexpr bool dma = true;
+			static constexpr unsigned set = 2;
+			static constexpr unsigned binding = 0;
 			SPIRV_ALIGNED(glm::mat4)  viewTransf;
 			SPIRV_ALIGNED(glm::vec3)  lightDirection;
 			SPIRV_ALIGNED(float)      rnd; // Different for every frame

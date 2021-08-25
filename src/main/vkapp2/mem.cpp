@@ -94,7 +94,8 @@ namespace vka2 {
 
 	BufferAlloc Application::createBuffer(
 			const vk::BufferCreateInfo& bcInfo,
-			vk::MemoryPropertyFlags reqFlags, vk::MemoryPropertyFlags prfFlags
+			vk::MemoryPropertyFlags reqFlags,
+			vk::MemoryPropertyFlags prfFlags
 	) {
 		VkBufferCreateInfo bcInfoC = bcInfo;
 		VmaAllocationCreateInfo acInfo = { };
@@ -102,6 +103,25 @@ namespace vka2 {
 		VmaAllocation allocation;
 		acInfo.requiredFlags = static_cast<VkMemoryPropertyFlags>(reqFlags);
 		acInfo.preferredFlags = static_cast<VkMemoryPropertyFlags>(prfFlags);
+		VkResult result = vmaCreateBuffer(_data.alloc,
+			&bcInfoC, &acInfo, &cBuffer, &allocation, nullptr);
+		if(result != VK_SUCCESS) {
+			throw std::runtime_error(formatVkErrorMsg(
+				"failed to create a buffer", util::enum_str(result)));
+		}
+		return { cBuffer, allocation };
+	}
+
+
+	BufferAlloc Application::createBuffer(
+			const vk::BufferCreateInfo& bcInfo,
+			VmaMemoryUsage usage
+	) {
+		VkBufferCreateInfo bcInfoC = bcInfo;
+		VmaAllocationCreateInfo acInfo = { };
+		VkBuffer cBuffer;
+		VmaAllocation allocation;
+		acInfo.usage = usage;
 		VkResult result = vmaCreateBuffer(_data.alloc,
 			&bcInfoC, &acInfo, &cBuffer, &allocation, nullptr);
 		if(result != VK_SUCCESS) {

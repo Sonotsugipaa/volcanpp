@@ -27,12 +27,6 @@
 
 
 
-layout(push_constant) uniform ObjectPushConstant {
-	mat4 modelMat;
-	vec4 col;
-	float rnd;
-} objectPc;
-
 layout(set = 0, binding = 0) uniform StaticUbo {
 	mat4 proj;
 	float outlineSize;
@@ -60,10 +54,14 @@ layout(set = 2, binding = 0) uniform FrameUbo {
 
 layout(location = 0) in vec3 in_pos;
 layout(location = 1) in vec3 in_nrm;
-layout(location = 2) in vec3 in_nrm_smooth;
+layout(location = 2) in vec3 in_nrmSmooth;
 layout(location = 3) in vec3 in_tanu;
 layout(location = 4) in vec3 in_tanv;
 layout(location = 5) in vec2 in_tex;
+
+layout(location = 6) in mat4 in_modelMat;
+layout(location = 10) in vec4 in_col;
+layout(location = 11) in float in_rnd;
 
 
 
@@ -98,10 +96,10 @@ void main_0() {
 
 // Cel shading, reflection
 void main_1() {
-	mat4 modelViewMat = frameUbo.view * objectPc.modelMat;
+	mat4 modelViewMat = frameUbo.view * in_modelMat;
 	mat3 modelViewMat3 = mat3(modelViewMat);
-	vec4 worldPos = objectPc.modelMat * vec4(in_pos, 1.0);
-	vec3 worldNrm = inverse(transpose(mat3(objectPc.modelMat))) * normalize(in_nrm_smooth);
+	vec4 worldPos = in_modelMat * vec4(in_pos, 1.0);
+	vec3 worldNrm = inverse(transpose(mat3(in_modelMat))) * normalize(in_nrmSmooth);
 
 	float rnd_mul = unnormalize(
 		1 - staticUbo.outlineRnd, 1 + staticUbo.outlineRnd,
