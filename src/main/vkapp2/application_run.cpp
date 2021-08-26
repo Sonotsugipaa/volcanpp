@@ -26,6 +26,7 @@
 
 #include <filesystem>
 #include <random>
+#include <set>
 #include <fstream>
 
 #include "vkapp2/draw.hpp"
@@ -48,6 +49,167 @@ namespace {
 	using keycode_t = int;
 	using KeyBinding = std::function<void (bool isPressed, unsigned modifiers)>;
 	using Keymap = std::map<keycode_t, KeyBinding>;
+
+
+	struct DeviceVectorTraits {
+		vk::BufferUsageFlags bufferUsage;
+		vk::MemoryPropertyFlags vmaRequiredFlags;
+		vk::MemoryPropertyFlags vmaPreferredFlags;
+		VmaMemoryUsage vmaMemoryUsage;
+	};
+
+
+	template<typename T>
+	class DeviceVector {
+	private:
+		DeviceVectorTraits traits_;
+		Application* app_;
+		T* cpuDataPtr_;
+		vk::DeviceSize dataSize_;
+		vk::DeviceSize dataCapacity_;
+		BufferAlloc cpuDataBuffer_;
+		BufferAlloc devDataBuffer_;
+
+		void allocWithTraits_(vk::DeviceSize n) {
+			assert(app_ != nullptr);
+			assert(cpuDataPtr_ == nullptr);
+			util::alloc_tracker.alloc("::DeviceVector<"s + std::to_string(sizeof(T)) + "B>::T"s, n);
+			{
+				auto cpuBcInfo = vk::BufferCreateInfo(
+					{ }, n * sizeof(T),
+					vk::BufferUsageFlagBits::eTransferSrc,
+					vk::SharingMode::eExclusive);
+				cpuDataBuffer_ = app_->createBuffer(cpuBcInfo, VMA_MEMORY_USAGE_CPU_ONLY);
+				cpuDataPtr_ = app_->template mapBuffer<T>(cpuDataBuffer_.alloc);
+			} {
+				auto devBcInfo = vk::BufferCreateInfo(
+					{ }, n * sizeof(T),
+					traits_.bufferUsage | vk::BufferUsageFlagBits::eTransferDst,
+					vk::SharingMode::eExclusive);
+				if(traits_.vmaMemoryUsage == VMA_MEMORY_USAGE_UNKNOWN) {
+					devDataBuffer_ = app_->createBuffer(devBcInfo, traits_.vmaRequiredFlags, traits_.vmaPreferredFlags);
+				} else {
+					devDataBuffer_ = app_->createBuffer(devBcInfo, traits_.vmaMemoryUsage);
+				}
+			}
+			dataCapacity_ = n;
+		}
+
+		void dealloc_() {
+			assert(app_ != nullptr);
+			#ifndef NDEBUG
+				cpuDataPtr_ = nullptr;
+			#endif
+			util::alloc_tracker.dealloc("::DeviceVector<"s + std::to_string(sizeof(T)) + "B>::T"s, dataCapacity_);
+			app_->unmapBuffer(cpuDataBuffer_.alloc);
+			app_->destroyBuffer(cpuDataBuffer_);
+			app_->destroyBuffer(devDataBuffer_);
+		}
+
+	public:
+		DeviceVector() { }
+
+		DeviceVector(Application& app, const DeviceVectorTraits& traits):
+				traits_(traits), app_(&app),
+				cpuDataPtr_(nullptr),
+				dataSize_(0), dataCapacity_(0)
+		{ }
+
+		DeviceVector(const DeviceVector& cp):
+				traits_(cp.traits_), app_(cp.app_),
+				dataSize_(cp.dataSize_)
+		{
+			if(app_ != nullptr && dataSize_ != 0) {
+				allocWithTraits_(dataSize_);
+				memcpy(cpuDataPtr_, cp.cpuDataPtr_, cp.dataSize_ * sizeof(T));
+			}
+		}
+
+		DeviceVector(DeviceVector&& mv):
+				traits_(std::move(mv.traits_)),
+				app_(std::move(mv.app_)),
+				cpuDataPtr_(std::move(mv.cpuDataPtr_)),
+				dataSize_(std::move(mv.dataSize_)),
+				cpuDataBuffer_(std::move(mv.cpuDataBuffer_)),
+				devDataBuffer_(std::move(mv.devDataBuffer_))
+		{
+			assert(app_ != nullptr);
+			mv.app_ = nullptr;
+		}
+
+		~DeviceVector() {
+			if(app_ != nullptr) {
+				if(dataSize_ != 0) {
+					dealloc_();
+				}
+				app_ = nullptr;
+			}
+		}
+
+		DeviceVector& operator=(const DeviceVector& cp) { this->~DeviceVector(); return *new (this) DeviceVector(cp); }
+		DeviceVector& operator=(DeviceVector&& mv) { this->~DeviceVector(); return *new (this) DeviceVector(mv); }
+
+
+		T* begin() { return cpuDataPtr_; }
+		const T* begin() const { return cpuDataPtr_; }
+		T* end() { return cpuDataPtr_ + dataSize_; }
+		const T* end() const { return cpuDataPtr_ + dataSize_; }
+
+		vk::DeviceSize size() const { return dataSize_; }
+		vk::DeviceSize capacity() const { return dataCapacity_; }
+
+		void resizeExact(vk::DeviceSize newSize, vk::DeviceSize newCapacity) {
+			if(newSize == 0) {
+				dealloc_();
+			} else {
+				auto old_cpuDataPtr = cpuDataPtr_;
+				allocWithTraits_(newCapacity);
+				memcpy(old_cpuDataPtr, cpuDataPtr_, std::min(dataSize_, newSize));
+				dataSize_ = newSize;
+				dataCapacity_ = newCapacity;
+			}
+		}
+
+		void resize(vk::DeviceSize newSize) {
+			if(newSize != 0) {
+				if(newSize > dataSize_) {
+					vk::DeviceSize pow = 1;
+					while(pow < newSize) pow *= 2;
+					resizeExact(newSize, pow);
+				}
+			}
+		}
+
+		void push_back(T v) {
+			resize(dataSize_ + 1);
+			cpuDataPtr_[dataSize_-1] = std::move(v);
+		}
+
+		T& operator[](vk::DeviceSize i) { assert(i < dataSize_); return cpuDataPtr_[i]; }
+		const T& operator[](vk::DeviceSize i) const { assert(i < dataSize_); return cpuDataPtr_[i]; }
+
+
+		const BufferAlloc& devBuffer() const { assert(app_ != nullptr); return devDataBuffer_; }
+
+		void syncDevice(vk::Fence fence, vk::DeviceSize beg, vk::DeviceSize end) {
+			assert(beg <= dataSize_);
+			assert(end <= dataSize_);
+			assert(beg <= end);
+			if(beg < end) {
+				vk::BufferCopy cp;
+				auto& cmdPool = app_->transferCommandPool();
+				cp.srcOffset = cp.dstOffset = beg * sizeof(T);
+				cp.setSize((end - beg) * sizeof(T));
+				cmdPool.runCmds(app_->queues().transfer, [&](vk::CommandBuffer cmd) {
+					cmd.copyBuffer(cpuDataBuffer_.handle, devDataBuffer_.handle, cp);
+				}, fence);
+			}
+		}
+
+		void syncDevice(vk::Fence fence) {
+			syncDevice(fence, 0, dataSize_);
+		}
+	};
 
 
 	struct FrameTiming {
@@ -143,6 +305,7 @@ namespace {
 		std::minstd_rand rng;
 		std::uniform_real_distribution<float> rngDistr;
 		std::vector<Object> objects;
+		DeviceVector<Instance> instances;
 		glm::vec3 lightDirection;
 		glm::vec3 position;
 		glm::vec2 orientation;
@@ -302,6 +465,9 @@ namespace {
 		dst.turnSpeedKeyMod = opts.viewParams.viewTurnSpeedKeyMod;
 		dst.moveSpeed = opts.viewParams.viewMoveSpeed;
 		dst.moveSpeedMod = opts.viewParams.viewMoveSpeedMod;
+		dst.instances = DeviceVector<Instance>(app, {
+			vk::BufferUsageFlagBits::eVertexBuffer,
+			{ }, { }, VMA_MEMORY_USAGE_GPU_ONLY });
 		dst.lightDirection = glm::normalize(glm::vec3({
 			opts.worldParams.lightDirection[0],
 			opts.worldParams.lightDirection[1],
@@ -580,27 +746,30 @@ namespace {
 	}
 
 
-	void mk_obj_push_const(
+	void mk_instances(
 			const std::vector<Object>& objects,
-			std::vector<push_const::Object>& dst
+			DeviceVector<Instance>& dst
 	) {
-		dst.reserve(dst.size() + objects.size());
-		for(const auto& obj : objects) {
-			push_const::Object newPc;
-			newPc.modelTransf = glm::mat4(1.0f);
-			newPc.modelTransf = glm::translate(newPc.modelTransf, obj.position);
-			newPc.modelTransf = glm::rotate(newPc.modelTransf,
-				glm::radians(obj.orientation.y), glm::vec3(1.0f, 0.0f, 0.0f));
-			newPc.modelTransf = glm::rotate(newPc.modelTransf,
-				glm::radians(obj.orientation.x), glm::vec3(0.0f, 1.0f, 0.0f));
-			newPc.modelTransf = glm::rotate(newPc.modelTransf,
-				glm::radians(obj.orientation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-			newPc.modelTransf = glm::scale(newPc.modelTransf, obj.scale);
-			newPc.colorMul = obj.color;
-			newPc.rnd = obj.rnd;
-			dst.push_back(newPc);
+		size_t i = 0;
+		if(dst.size() != objects.size()) {
+			dst.resize(objects.size());
 		}
-		assert(dst.size() == objects.size());
+		for(const auto& obj : objects) {
+			Instance& inst = dst[i];
+			inst.modelTransf = glm::mat4(1.0f);
+			inst.modelTransf = glm::translate(inst.modelTransf, obj.position);
+			inst.modelTransf = glm::rotate(inst.modelTransf,
+				glm::radians(obj.orientation.y), glm::vec3(1.0f, 0.0f, 0.0f));
+			inst.modelTransf = glm::rotate(inst.modelTransf,
+				glm::radians(obj.orientation.x), glm::vec3(0.0f, 1.0f, 0.0f));
+			inst.modelTransf = glm::rotate(inst.modelTransf,
+				glm::radians(obj.orientation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+			inst.modelTransf = glm::scale(inst.modelTransf, obj.scale);
+			inst.colorMul = obj.color;
+			inst.rnd = obj.rnd;
+			++i;
+		}
+		assert(i == objects.size());
 	}
 
 
@@ -651,36 +820,36 @@ namespace vka2 {
 					process_input(ctx, orientationMat);
 					if(try_change_fullscreen(*this, opts, ctx)) {
 						continue; }
+					ubo::Frame frameUbo;
+					mk_frame_ubo(ctx, orientationMat, frameUbo);
+ctx.objects[0].orientation.x += ctx.frameTiming.frameTime;
+ctx.objects[1].orientation.x += 2 * ctx.frameTiming.frameTime;
+					mk_instances(ctx.objects, ctx.instances);
+					ctx.instances.syncDevice(nullptr);
 					auto draw = [&ctx](
 							RenderPass::FrameHandle& fh, vk::CommandBuffer cmd,
-							const Object& obj, const push_const::Object& objPushConst,
+							const Object& obj, uint32_t instanceIdx,
 							Pipeline& pipeline
 					) {
-						cmd.pushConstants(ctx.rpass.pipelineLayout(),
-							vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-							0, sizeof(push_const::Object), &objPushConst);
 						cmd.bindPipeline(
 							vk::PipelineBindPoint::eGraphics, pipeline.handle());
 						cmd.bindVertexBuffers(0, obj.mdlWr->vtxBuffer().handle, { 0 });
+						cmd.bindVertexBuffers(1, ctx.instances.devBuffer().handle, { 0 });
 						cmd.bindIndexBuffer(obj.mdlWr->idxBuffer().handle,
 							0, Vertex::INDEX_TYPE);
 						fh.bindModelDescriptorSet(cmd, obj.mdlWr.descSet());
-						cmd.drawIndexed(obj.mdlWr->idxCount(), 1, 0, 0, 0);
+						cmd.drawIndexed(obj.mdlWr->idxCount(), 1, 0, 0, instanceIdx);
 					};
-					ubo::Frame frameUbo;
-					mk_frame_ubo(ctx, orientationMat, frameUbo);
-					objPushConsts.clear();
-					mk_obj_push_const(ctx.objects, objPushConsts);
 					ctx.rpass.runRenderPass(frameUbo, { }, { }, {
 						std::function([&](RenderPass::FrameHandle& fh, vk::CommandBuffer cmd) {
-							assert(objPushConsts.size() == ctx.objects.size());
+							assert(ctx.instances.size() == ctx.objects.size());
 							for(size_t i=0; i < ctx.objects.size(); ++i) {
-								draw(fh, cmd, ctx.objects[i], objPushConsts[i], ctx.mainPipeline); }
+								draw(fh, cmd, ctx.objects[i], i, ctx.mainPipeline); }
 						}),
 						std::function([&](RenderPass::FrameHandle& fh, vk::CommandBuffer cmd) {
-							assert(objPushConsts.size() == ctx.objects.size());
+							assert(ctx.instances.size() == ctx.objects.size());
 							for(size_t i=0; i < ctx.objects.size(); ++i) {
-								draw(fh, cmd, ctx.objects[i], objPushConsts[i], ctx.outlinePipeline); }
+								draw(fh, cmd, ctx.objects[i], i, ctx.outlinePipeline); }
 						})
 					});
 					{ // Framerate throttle

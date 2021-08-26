@@ -109,7 +109,7 @@ namespace {
 
 
 	Queues::FamilyIndices find_qfam_idxs(vk::PhysicalDevice pdev) {
-		constexpr static auto errmsg = [](const char* qtype, vk::PhysicalDevice pdev) {
+		static constexpr auto errmsg = [](const char* qtype, vk::PhysicalDevice pdev) {
 			return "no suitable queue for "s + qtype + " ops on device "s +
 				std::to_string(pdev.getProperties().deviceID);
 		};
@@ -424,7 +424,7 @@ int main(int, char**) {
 	#endif
 		util::log.setLevel(util::LOG_DEBUG, DO_DEBUG);
 		util::log.setLevel(util::LOG_VK_DEBUG, DO_DEBUG);
-		// util::log.setLevel(util::LOG_ALLOC, DO_DEBUG);
+		util::log.setLevel(util::LOG_ALLOC, DO_DEBUG);
 	#undef DO_DEBUG
 	util::log.setLevel(util::LOG_GENERAL, true);
 	util::log.setLevel(util::LOG_ERROR, true);

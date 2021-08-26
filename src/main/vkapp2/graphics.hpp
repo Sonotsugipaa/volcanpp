@@ -104,8 +104,8 @@ namespace vka2 {
 			eColor, eNormal, eSpecular
 		};
 
-		constexpr static unsigned samplerDescriptorSet = ubo::Model::set;
-		constexpr static std::array<unsigned, 2> samplerDescriptorBindings = { 1, 2 }; // Diffuse, Normal (+ Reflect in the near future)
+		static constexpr unsigned samplerDescriptorSet = ubo::Model::set;
+		static constexpr std::array<unsigned, 2> samplerDescriptorBindings = { 1, 2 }; // Diffuse, Normal (+ Reflect in the near future)
 
 		struct Data {
 			unsigned width, height, channels;
@@ -521,7 +521,13 @@ namespace vka2 {
 		BufferAlloc createBuffer(
 			const vk::BufferCreateInfo&,
 			vk::MemoryPropertyFlags requiredFlags,
-			vk::MemoryPropertyFlags preferedFlags = { });
+			vk::MemoryPropertyFlags preferedFlags = { },
+			vk::MemoryPropertyFlags disallowedFlags = { });
+
+		BufferAlloc createBuffer(
+			const vk::BufferCreateInfo&,
+			VmaMemoryUsage memUsage,
+			vk::MemoryPropertyFlags disallowedFlags = { });
 
 		void destroyBuffer(BufferAlloc&);
 
@@ -529,7 +535,8 @@ namespace vka2 {
 		ImageAlloc createImage(
 			const vk::ImageCreateInfo&,
 			vk::MemoryPropertyFlags requiredFlags,
-			vk::MemoryPropertyFlags preferedFlags = { });
+			vk::MemoryPropertyFlags preferedFlags = { },
+			vk::MemoryPropertyFlags disallowedFlags = { });
 
 		void destroyImage(ImageAlloc&);
 

@@ -311,13 +311,12 @@ namespace vka2 {
 			_idx = r.second;  util::alloc_tracker.alloc("Model:_idx");
 		} { // Create UBO buffer
 			static_assert(UboType::dma); // Because we're using eHostVisible | eDeviceLocal
-			vk::BufferCreateInfo bcInfo;
+			vk::BufferCreateInfo bcInfo = { };
 			bcInfo.sharingMode = vk::SharingMode::eExclusive;
 			bcInfo.usage = vk::BufferUsageFlagBits::eUniformBuffer;
 			bcInfo.size = sizeof(UboType);
 			_ubo = _app->createBuffer(bcInfo,
-				vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
-				vk::MemoryPropertyFlagBits::eDeviceLocal);  util::alloc_tracker.alloc("Model:_ubo");
+				VMA_MEMORY_USAGE_CPU_TO_GPU);  util::alloc_tracker.alloc("Model:_ubo");
 		}
 	}
 

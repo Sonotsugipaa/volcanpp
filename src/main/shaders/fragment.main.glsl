@@ -27,12 +27,6 @@
 
 
 
-layout(push_constant) uniform ObjectPushConstant {
-	mat4 modelMat;
-	vec4 col;
-	float rnd;
-} objectPc;
-
 layout(set = 0, binding = 0) uniform StaticUbo {
 	mat4 proj;
 	float outlineSize;
@@ -56,15 +50,16 @@ layout(set = 2, binding = 0) uniform FrameUbo {
 	uint shaderSelector;
 } frameUbo;
 
-layout(set = 1, binding = 1) uniform sampler2D tex_dfs_sampler;
-layout(set = 1, binding = 2) uniform sampler2D tex_nrm_sampler;
+layout(set = 1, binding = 1) uniform sampler2D tex_dfsSampler;
+layout(set = 1, binding = 2) uniform sampler2D tex_nrmSampler;
 
 
 
 layout(location = 0) in vec2 frg_tex;
-layout(location = 1) in vec3 frg_eyedir_tan;
-layout(location = 2) in vec3 frg_lightdir_tan;
-layout(location = 3) in vec3 frg_nrm_tan;
+layout(location = 1) in vec3 frg_eyedirTan;
+layout(location = 2) in vec3 frg_lightdirTan;
+layout(location = 3) in vec3 frg_nrmTan;
+layout(location = 4) in vec4 frg_col;
 
 layout(location = 0) out vec4 out_col;
 
@@ -96,7 +91,7 @@ vec3 rnd_f3(vec3 seed) {
 
 vec3 get_normal_tanspace() {
 	return (
-		normalize(texture(tex_nrm_sampler, frg_tex).rgb)
+		normalize(texture(tex_nrmSampler, frg_tex).rgb)
 		- 0.5
 	) * 2.0;
 }
@@ -105,7 +100,7 @@ vec3 get_normal_tanspace() {
 float computeDiffusion(vec3 lightdirTan, vec3 normalTanspace) {
 	float r = unnormalize(
 		modelUbo.minDiffuse, modelUbo.maxDiffuse,
-			dot(-frg_nrm_tan, normalTanspace * lightdirTan));
+			dot(-frg_nrmTan, normalTanspace * lightdirTan));
 	r = max(0, r);
 	return r;
 }
@@ -115,7 +110,7 @@ float computeSpecular(vec3 lightdirTan, vec3 normalTanspace) {
 	float r = unnormalize(
 		0, modelUbo.maxSpecular,
 		pow(
-			dot(frg_eyedir_tan, normalTanspace * lightdirTan),
+			dot(frg_eyedirTan, normalTanspace * lightdirTan),
 			modelUbo.expSpecular));
 	r = max(0, r);
 	return r;
@@ -127,20 +122,20 @@ float computeSpecular(vec3 lightdirTan, vec3 normalTanspace) {
 void main_0() {
 	float diffuse = max(0, unnormalize(
 		modelUbo.minDiffuse, modelUbo.maxDiffuse,
-		dot(-frg_lightdir_tan, frg_nrm_tan)));
+		dot(-frg_lightdirTan, frg_nrmTan)));
 	out_col =
-		texture(tex_dfs_sampler, frg_tex) * objectPc.col
-		* (diffuse + computeSpecular(frg_lightdir_tan, frg_nrm_tan));
+		texture(tex_dfsSampler, frg_tex) * frg_col
+		* (diffuse + computeSpecular(frg_lightdirTan, frg_nrmTan));
 }
 
 
 // Light diffusion
 void main_1() {
-	float diffusion = computeDiffusion(frg_lightdir_tan, get_normal_tanspace());
+	float diffusion = computeDiffusion(frg_lightdirTan, get_normal_tanspace());
 
 	out_col =
-		texture(tex_dfs_sampler, frg_tex)
-		* objectPc.col;
+		texture(tex_dfsSampler, frg_tex)
+		* frg_col;
 
 	out_col *= diffusion;
 }
@@ -148,11 +143,11 @@ void main_1() {
 
 // Cel shading, diffuse lighting
 void main_2() {
-	float diffusion = computeDiffusion(frg_lightdir_tan, get_normal_tanspace());
+	float diffusion = computeDiffusion(frg_lightdirTan, get_normal_tanspace());
 
 	out_col =
-		texture(tex_dfs_sampler, frg_tex)
-		* objectPc.col;
+		texture(tex_dfsSampler, frg_tex)
+		* frg_col;
 
 	out_col.xyz *= shave(diffusion, 1.0 / float(staticUbo.lightLevels), 0.5);
 
@@ -162,11 +157,11 @@ void main_2() {
 
 // Specular light
 void main_3() {
-	float reflection = computeSpecular(frg_lightdir_tan, get_normal_tanspace());
+	float reflection = computeSpecular(frg_lightdirTan, get_normal_tanspace());
 
 	out_col =
-		texture(tex_dfs_sampler, frg_tex)
-		* objectPc.col;
+		texture(tex_dfsSampler, frg_tex)
+		* frg_col;
 
 	out_col.xyz *= reflection;
 
@@ -176,11 +171,11 @@ void main_3() {
 
 // Cel shading, specular light
 void main_4() {
-	float reflection = computeSpecular(frg_lightdir_tan, get_normal_tanspace());
+	float reflection = computeSpecular(frg_lightdirTan, get_normal_tanspace());
 
 	out_col =
-		texture(tex_dfs_sampler, frg_tex)
-		* objectPc.col;
+		texture(tex_dfsSampler, frg_tex)
+		* frg_col;
 
 	out_col.xyz *= shave(reflection, 1.0 / float(staticUbo.lightLevels), 0.5);
 
@@ -191,10 +186,10 @@ void main_4() {
 // Everything minus cel shading
 void main_5() {
 	float reflection =
-		computeDiffusion(frg_lightdir_tan, get_normal_tanspace())
-		+ computeSpecular(frg_lightdir_tan, get_normal_tanspace());
+		computeDiffusion(frg_lightdirTan, get_normal_tanspace())
+		+ computeSpecular(frg_lightdirTan, get_normal_tanspace());
 
-	out_col = texture(tex_dfs_sampler, frg_tex) * objectPc.col;
+	out_col = texture(tex_dfsSampler, frg_tex) * frg_col;
 	out_col.xyz *= reflection;
 
 	if(out_col.w < 0.01)  discard;
@@ -204,10 +199,10 @@ void main_5() {
 // Everything
 void main_6() {
 	float reflection =
-		computeDiffusion(frg_lightdir_tan, get_normal_tanspace())
-		+ computeSpecular(frg_lightdir_tan, get_normal_tanspace());
+		computeDiffusion(frg_lightdirTan, get_normal_tanspace())
+		+ computeSpecular(frg_lightdirTan, get_normal_tanspace());
 
-	out_col = texture(tex_dfs_sampler, frg_tex) * objectPc.col;
+	out_col = texture(tex_dfsSampler, frg_tex) * frg_col;
 	out_col.xyz *= shave(reflection, 1.0 / float(staticUbo.lightLevels), 0.5);
 
 	if(out_col.w < 0.01)  discard;
