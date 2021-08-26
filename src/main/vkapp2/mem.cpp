@@ -95,7 +95,8 @@ namespace vka2 {
 	BufferAlloc Application::createBuffer(
 			const vk::BufferCreateInfo& bcInfo,
 			vk::MemoryPropertyFlags reqFlags,
-			vk::MemoryPropertyFlags prfFlags
+			vk::MemoryPropertyFlags prfFlags,
+			vk::MemoryPropertyFlags prohibFlags
 	) {
 		VkBufferCreateInfo bcInfoC = bcInfo;
 		VmaAllocationCreateInfo acInfo = { };
@@ -103,6 +104,7 @@ namespace vka2 {
 		VmaAllocation allocation;
 		acInfo.requiredFlags = static_cast<VkMemoryPropertyFlags>(reqFlags);
 		acInfo.preferredFlags = static_cast<VkMemoryPropertyFlags>(prfFlags);
+		acInfo.memoryTypeBits = static_cast<VkMemoryPropertyFlags>(~prohibFlags);
 		VkResult result = vmaCreateBuffer(_data.alloc,
 			&bcInfoC, &acInfo, &cBuffer, &allocation, nullptr);
 		if(result != VK_SUCCESS) {
@@ -115,13 +117,15 @@ namespace vka2 {
 
 	BufferAlloc Application::createBuffer(
 			const vk::BufferCreateInfo& bcInfo,
-			VmaMemoryUsage usage
+			VmaMemoryUsage usage,
+			vk::MemoryPropertyFlags prohibFlags
 	) {
 		VkBufferCreateInfo bcInfoC = bcInfo;
 		VmaAllocationCreateInfo acInfo = { };
 		VkBuffer cBuffer;
 		VmaAllocation allocation;
 		acInfo.usage = usage;
+		acInfo.memoryTypeBits = static_cast<VkMemoryPropertyFlags>(~prohibFlags);
 		VkResult result = vmaCreateBuffer(_data.alloc,
 			&bcInfoC, &acInfo, &cBuffer, &allocation, nullptr);
 		if(result != VK_SUCCESS) {
@@ -138,7 +142,8 @@ namespace vka2 {
 
 	ImageAlloc Application::createImage(
 			const vk::ImageCreateInfo& icInfo,
-			vk::MemoryPropertyFlags reqFlags, vk::MemoryPropertyFlags prfFlags
+			vk::MemoryPropertyFlags reqFlags, vk::MemoryPropertyFlags prfFlags,
+			vk::MemoryPropertyFlags prohibFlags
 	) {
 		VkImageCreateInfo icInfoC = icInfo;
 		VmaAllocationCreateInfo acInfo = { };
@@ -146,6 +151,7 @@ namespace vka2 {
 		VmaAllocation allocation;
 		acInfo.requiredFlags = static_cast<VkMemoryPropertyFlags>(reqFlags);
 		acInfo.preferredFlags = static_cast<VkMemoryPropertyFlags>(prfFlags);
+		acInfo.memoryTypeBits = static_cast<VkMemoryPropertyFlags>(~prohibFlags);
 		VkResult result = vmaCreateImage(_data.alloc,
 			&icInfoC, &acInfo, &cImage, &allocation, nullptr);
 		if(result != VK_SUCCESS) {

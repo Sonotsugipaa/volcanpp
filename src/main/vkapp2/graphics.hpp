@@ -521,11 +521,13 @@ namespace vka2 {
 		BufferAlloc createBuffer(
 			const vk::BufferCreateInfo&,
 			vk::MemoryPropertyFlags requiredFlags,
-			vk::MemoryPropertyFlags preferedFlags = { });
+			vk::MemoryPropertyFlags preferedFlags = { },
+			vk::MemoryPropertyFlags disallowedFlags = { });
 
 		BufferAlloc createBuffer(
 			const vk::BufferCreateInfo&,
-			VmaMemoryUsage memUsage);
+			VmaMemoryUsage memUsage,
+			vk::MemoryPropertyFlags disallowedFlags = { });
 
 		void destroyBuffer(BufferAlloc&);
 
@@ -533,7 +535,8 @@ namespace vka2 {
 		ImageAlloc createImage(
 			const vk::ImageCreateInfo&,
 			vk::MemoryPropertyFlags requiredFlags,
-			vk::MemoryPropertyFlags preferedFlags = { });
+			vk::MemoryPropertyFlags preferedFlags = { },
+			vk::MemoryPropertyFlags disallowedFlags = { });
 
 		void destroyImage(ImageAlloc&);
 

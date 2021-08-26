@@ -51,143 +51,165 @@ namespace {
 	using Keymap = std::map<keycode_t, KeyBinding>;
 
 
-	template<typename T>
-	struct BufferAllocator {
-		using size_type = size_t;
-		using value_type = T;
-		using pointer_type = value_type*;
-		using const_pointer_type = const value_type*;
-
-
-		struct Allocation {
-			BufferAlloc bufferAlloc;
-			pointer_type cpuMapped;
-
-			std::strong_ordering operator<=>(const Allocation& rh) const { return cpuMapped <=> static_cast<const void*>(rh.cpuMapped); }
-			std::weak_ordering operator<=>(const_pointer_type rh) const { return cpuMapped <=> static_cast<const void*>(rh); }
-
-			operator pointer_type() { return cpuMapped; }
-			operator const_pointer_type() const { return cpuMapped; }
-		};
-
-		struct State {
-			Application* app;
-			vk::BufferUsageFlags usage;
-			VmaMemoryUsage memoryUsage;
-			vk::MemoryPropertyFlags requiredFlags;
-			vk::MemoryPropertyFlags preferredFlags;
-			std::set<Allocation, std::less<>> pool;
-		};
-
-		std::shared_ptr<State> state;
-
-		BufferAllocator(): state(std::make_shared<State>()) { }
-
-		BufferAllocator(const BufferAllocator&) = default;
-		BufferAllocator(BufferAllocator&&) = default;
-
-		BufferAllocator& operator=(const BufferAllocator&) = default;
-		BufferAllocator& operator=(BufferAllocator&&) = default;
-
-
-		template<typename U>
-		BufferAllocator(const BufferAllocator<U> cp) noexcept:
-				state(cp.state)
-		{ }
-
-
-		void setState(
-				Application& app,
-				vk::BufferUsageFlags usage,
-				vk::MemoryPropertyFlags requiredFlags,
-				vk::MemoryPropertyFlags preferredFlags = vk::MemoryPropertyFlags(0)
-		) {
-			*state = State{&app, usage, { }, requiredFlags, preferredFlags, decltype(State::pool)()};
-		}
-
-		void setState(
-				Application& app,
-				vk::BufferUsageFlags usage,
-				VmaMemoryUsage memoryUsage
-		) {
-			*state = State{&app, usage, memoryUsage, { }, { }, decltype(State::pool)()};
-		}
-
-
-		pointer_type allocate(size_t count) {
-			assert(state != nullptr);
-			assert(state->app != nullptr);
-			pointer_type r;
-			vk::BufferCreateInfo bcInfo = { };
-			BufferAlloc newAlloc;
-			count += count == 0;
-			bcInfo.setSharingMode(vk::SharingMode::eExclusive);
-			bcInfo.setSize(sizeof(value_type) * count);
-			bcInfo.setUsage(state->usage);
-			if(state->memoryUsage == 0) {
-				newAlloc = state->app->createBuffer(bcInfo, state->requiredFlags, state->preferredFlags);
-			} else {
-				newAlloc = state->app->createBuffer(bcInfo, state->memoryUsage);
-			}
-			r = state->app->template mapBuffer<value_type>(newAlloc.alloc);
-			assert(! state->pool.contains(r));
-			state->pool.insert(Allocation { newAlloc, r });
-			util::alloc_tracker.alloc("::BufferAllocator<"s + std::to_string(sizeof(value_type)) + "B>::Allocation"s, count);
-			return r;
-		}
-
-
-		void deallocate(pointer_type ptr, size_t count) {
-			assert(state != nullptr);
-			assert(ptr != nullptr);
-			assert(state->app != nullptr);
-			auto found = state->pool.find(ptr);
-			count += count == 0;
-			assert(found != state->pool.end());
-			assert(state->pool.contains(ptr));
-			assert(found->cpuMapped == ptr);
-			auto bufferAlloc = found->bufferAlloc;
-			state->app->unmapBuffer(bufferAlloc.alloc);
-			state->app->destroyBuffer(bufferAlloc);
-			util::alloc_tracker.dealloc("::BufferAllocator<"s + std::to_string(sizeof(value_type)) + "B>::Allocation"s, count);
-		}
-
-
-		BufferAlloc operator[](pointer_type ptr) {
-			assert(state != nullptr);
-			auto found = state->pool.find(ptr);
-			assert(found != state->pool.end());
-			assert(state->pool.contains(ptr));
-			assert(found->cpuMapped == ptr);
-			return found->bufferAlloc;
-		}
-
-		const BufferAlloc operator[](const_pointer_type ptr) const {
-			assert(state != nullptr);
-			auto found = state->pool.find(ptr);
-			assert(found != state->pool.end());
-			assert(state->pool.contains(ptr));
-			assert(found->cpuMapped == ptr);
-			return found->bufferAlloc;
-		}
-
-		template<typename U> bool operator==(const BufferAllocator<U>& other) const {
-			if(state == nullptr || other.state == nullptr) return state == other.state;
-			return
-				(other.state->app == state->app) &&
-				(other.state->usage == state->usage) &&
-				(other.state->requiredFlags == state->requiredFlags) &&
-				(other.state->preferredFlags == state->preferredFlags) &&
-				(other.state->pool == state->pool);
-		}
-
-		template<typename U> bool operator!=(const BufferAllocator<U>& other) const {
-			return ! operator==(other);
-		}
+	struct DeviceVectorTraits {
+		vk::BufferUsageFlags bufferUsage;
+		vk::MemoryPropertyFlags vmaRequiredFlags;
+		vk::MemoryPropertyFlags vmaPreferredFlags;
+		VmaMemoryUsage vmaMemoryUsage;
 	};
 
+
 	template<typename T>
-	using DeviceVector = std::vector<T, BufferAllocator<T>>;
+	class DeviceVector {
+	private:
+		DeviceVectorTraits traits_;
+		Application* app_;
+		T* cpuDataPtr_;
+		vk::DeviceSize dataSize_;
+		vk::DeviceSize dataCapacity_;
+		BufferAlloc cpuDataBuffer_;
+		BufferAlloc devDataBuffer_;
+
+		void allocWithTraits_(vk::DeviceSize n) {
+			assert(app_ != nullptr);
+			assert(cpuDataPtr_ == nullptr);
+			util::alloc_tracker.alloc("::DeviceVector<"s + std::to_string(sizeof(T)) + "B>::T"s, n);
+			{
+				auto cpuBcInfo = vk::BufferCreateInfo(
+					{ }, n * sizeof(T),
+					vk::BufferUsageFlagBits::eTransferSrc,
+					vk::SharingMode::eExclusive);
+				cpuDataBuffer_ = app_->createBuffer(cpuBcInfo, VMA_MEMORY_USAGE_CPU_ONLY);
+				cpuDataPtr_ = app_->template mapBuffer<T>(cpuDataBuffer_.alloc);
+			} {
+				auto devBcInfo = vk::BufferCreateInfo(
+					{ }, n * sizeof(T),
+					traits_.bufferUsage | vk::BufferUsageFlagBits::eTransferDst,
+					vk::SharingMode::eExclusive);
+				if(traits_.vmaMemoryUsage == VMA_MEMORY_USAGE_UNKNOWN) {
+					devDataBuffer_ = app_->createBuffer(devBcInfo, traits_.vmaRequiredFlags, traits_.vmaPreferredFlags);
+				} else {
+					devDataBuffer_ = app_->createBuffer(devBcInfo, traits_.vmaMemoryUsage);
+				}
+			}
+			dataCapacity_ = n;
+		}
+
+		void dealloc_() {
+			assert(app_ != nullptr);
+			#ifndef NDEBUG
+				cpuDataPtr_ = nullptr;
+			#endif
+			util::alloc_tracker.dealloc("::DeviceVector<"s + std::to_string(sizeof(T)) + "B>::T"s, dataCapacity_);
+			app_->unmapBuffer(cpuDataBuffer_.alloc);
+			app_->destroyBuffer(cpuDataBuffer_);
+			app_->destroyBuffer(devDataBuffer_);
+		}
+
+	public:
+		DeviceVector() { }
+
+		DeviceVector(Application& app, const DeviceVectorTraits& traits):
+				traits_(traits), app_(&app),
+				cpuDataPtr_(nullptr),
+				dataSize_(0), dataCapacity_(0)
+		{ }
+
+		DeviceVector(const DeviceVector& cp):
+				traits_(cp.traits_), app_(cp.app_),
+				dataSize_(cp.dataSize_)
+		{
+			if(app_ != nullptr && dataSize_ != 0) {
+				allocWithTraits_(dataSize_);
+				memcpy(cpuDataPtr_, cp.cpuDataPtr_, cp.dataSize_ * sizeof(T));
+			}
+		}
+
+		DeviceVector(DeviceVector&& mv):
+				traits_(std::move(mv.traits_)),
+				app_(std::move(mv.app_)),
+				cpuDataPtr_(std::move(mv.cpuDataPtr_)),
+				dataSize_(std::move(mv.dataSize_)),
+				cpuDataBuffer_(std::move(mv.cpuDataBuffer_)),
+				devDataBuffer_(std::move(mv.devDataBuffer_))
+		{
+			assert(app_ != nullptr);
+			mv.app_ = nullptr;
+		}
+
+		~DeviceVector() {
+			if(app_ != nullptr) {
+				if(dataSize_ != 0) {
+					dealloc_();
+				}
+				app_ = nullptr;
+			}
+		}
+
+		DeviceVector& operator=(const DeviceVector& cp) { this->~DeviceVector(); return *new (this) DeviceVector(cp); }
+		DeviceVector& operator=(DeviceVector&& mv) { this->~DeviceVector(); return *new (this) DeviceVector(mv); }
+
+
+		T* begin() { return cpuDataPtr_; }
+		const T* begin() const { return cpuDataPtr_; }
+		T* end() { return cpuDataPtr_ + dataSize_; }
+		const T* end() const { return cpuDataPtr_ + dataSize_; }
+
+		vk::DeviceSize size() const { return dataSize_; }
+		vk::DeviceSize capacity() const { return dataCapacity_; }
+
+		void resizeExact(vk::DeviceSize newSize, vk::DeviceSize newCapacity) {
+			if(newSize == 0) {
+				dealloc_();
+			} else {
+				auto old_cpuDataPtr = cpuDataPtr_;
+				allocWithTraits_(newCapacity);
+				memcpy(old_cpuDataPtr, cpuDataPtr_, std::min(dataSize_, newSize));
+				dataSize_ = newSize;
+				dataCapacity_ = newCapacity;
+			}
+		}
+
+		void resize(vk::DeviceSize newSize) {
+			if(newSize != 0) {
+				if(newSize > dataSize_) {
+					vk::DeviceSize pow = 1;
+					while(pow < newSize) pow *= 2;
+					resizeExact(newSize, pow);
+				}
+			}
+		}
+
+		void push_back(T v) {
+			resize(dataSize_ + 1);
+			cpuDataPtr_[dataSize_-1] = std::move(v);
+		}
+
+		T& operator[](vk::DeviceSize i) { assert(i < dataSize_); return cpuDataPtr_[i]; }
+		const T& operator[](vk::DeviceSize i) const { assert(i < dataSize_); return cpuDataPtr_[i]; }
+
+
+		const BufferAlloc& devBuffer() const { assert(app_ != nullptr); return devDataBuffer_; }
+
+		void syncDevice(vk::Fence fence, vk::DeviceSize beg, vk::DeviceSize end) {
+			assert(beg <= dataSize_);
+			assert(end <= dataSize_);
+			assert(beg <= end);
+			if(beg < end) {
+				vk::BufferCopy cp;
+				auto& cmdPool = app_->transferCommandPool();
+				cp.srcOffset = cp.dstOffset = beg * sizeof(T);
+				cp.setSize((end - beg) * sizeof(T));
+				cmdPool.runCmds(app_->queues().transfer, [&](vk::CommandBuffer cmd) {
+					cmd.copyBuffer(cpuDataBuffer_.handle, devDataBuffer_.handle, cp);
+				}, fence);
+			}
+		}
+
+		void syncDevice(vk::Fence fence) {
+			syncDevice(fence, 0, dataSize_);
+		}
+	};
 
 
 	struct FrameTiming {
@@ -443,9 +465,9 @@ namespace {
 		dst.turnSpeedKeyMod = opts.viewParams.viewTurnSpeedKeyMod;
 		dst.moveSpeed = opts.viewParams.viewMoveSpeed;
 		dst.moveSpeedMod = opts.viewParams.viewMoveSpeedMod;
-		dst.instances.get_allocator().setState(app,
+		dst.instances = DeviceVector<Instance>(app, {
 			vk::BufferUsageFlagBits::eVertexBuffer,
-			VMA_MEMORY_USAGE_CPU_TO_GPU);
+			{ }, { }, VMA_MEMORY_USAGE_GPU_ONLY });
 		dst.lightDirection = glm::normalize(glm::vec3({
 			opts.worldParams.lightDirection[0],
 			opts.worldParams.lightDirection[1],
@@ -803,8 +825,8 @@ namespace vka2 {
 ctx.objects[0].orientation.x += ctx.frameTiming.frameTime;
 ctx.objects[1].orientation.x += 2 * ctx.frameTiming.frameTime;
 					mk_instances(ctx.objects, ctx.instances);
-					vk::Buffer instanceBuffer = ctx.instances.get_allocator()[ctx.instances.data()].handle;
-					auto draw = [&ctx, instanceBuffer](
+					ctx.instances.syncDevice(nullptr);
+					auto draw = [&ctx](
 							RenderPass::FrameHandle& fh, vk::CommandBuffer cmd,
 							const Object& obj, uint32_t instanceIdx,
 							Pipeline& pipeline
@@ -812,7 +834,7 @@ ctx.objects[1].orientation.x += 2 * ctx.frameTiming.frameTime;
 						cmd.bindPipeline(
 							vk::PipelineBindPoint::eGraphics, pipeline.handle());
 						cmd.bindVertexBuffers(0, obj.mdlWr->vtxBuffer().handle, { 0 });
-						cmd.bindVertexBuffers(1, instanceBuffer, { 0 });
+						cmd.bindVertexBuffers(1, ctx.instances.devBuffer().handle, { 0 });
 						cmd.bindIndexBuffer(obj.mdlWr->idxBuffer().handle,
 							0, Vertex::INDEX_TYPE);
 						fh.bindModelDescriptorSet(cmd, obj.mdlWr.descSet());
