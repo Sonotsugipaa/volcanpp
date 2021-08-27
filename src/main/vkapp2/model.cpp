@@ -307,8 +307,8 @@ namespace vka2 {
 	{
 		{ // Create the input buffers
 			auto r = stage_vertices(*_app, vtx, idx);
-			_vtx = r.first;  util::alloc_tracker.alloc("Model:_vtx");
-			_idx = r.second;  util::alloc_tracker.alloc("Model:_idx");
+			_vtx = r.first;
+			_idx = r.second;
 		} { // Create UBO buffer
 			static_assert(UboType::dma); // Because we're using eHostVisible | eDeviceLocal
 			vk::BufferCreateInfo bcInfo = { };
@@ -316,8 +316,9 @@ namespace vka2 {
 			bcInfo.usage = vk::BufferUsageFlagBits::eUniformBuffer;
 			bcInfo.size = sizeof(UboType);
 			_ubo = _app->createBuffer(bcInfo,
-				VMA_MEMORY_USAGE_CPU_TO_GPU);  util::alloc_tracker.alloc("Model:_ubo");
+				VMA_MEMORY_USAGE_CPU_TO_GPU);
 		}
+		util::alloc_tracker.alloc("Model");
 	}
 
 
@@ -336,10 +337,11 @@ namespace vka2 {
 
 	Model::~Model() {
 		if(_app != nullptr) {
-			_app->destroyBuffer(_vtx);  util::alloc_tracker.dealloc("Model:_vtx");
-			_app->destroyBuffer(_idx);  util::alloc_tracker.dealloc("Model:_idx");
-			_app->destroyBuffer(_ubo);  util::alloc_tracker.dealloc("Model:_ubo");
+			_app->destroyBuffer(_vtx);
+			_app->destroyBuffer(_idx);
+			_app->destroyBuffer(_ubo);
 			_app = nullptr;
+			util::alloc_tracker.dealloc("Model");
 		}
 	}
 

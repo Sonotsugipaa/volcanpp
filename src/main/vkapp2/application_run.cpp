@@ -95,15 +95,21 @@ namespace {
 			dataCapacity_ = n;
 		}
 
+		void dealloc_(
+				VmaAllocation vmaAlloc,
+				BufferAlloc& cpuBuffer, BufferAlloc& devBuffer,
+				vk::DeviceSize capacity
+		) {
+			util::alloc_tracker.dealloc("::DeviceVector<"s + std::to_string(sizeof(T)) + "B>::T"s, capacity);
+			app_->unmapBuffer(vmaAlloc);
+			app_->destroyBuffer(cpuBuffer);
+			app_->destroyBuffer(devBuffer);
+		}
+
 		void dealloc_() {
 			assert(app_ != nullptr);
-			#ifndef NDEBUG
-				cpuDataPtr_ = nullptr;
-			#endif
-			util::alloc_tracker.dealloc("::DeviceVector<"s + std::to_string(sizeof(T)) + "B>::T"s, dataCapacity_);
-			app_->unmapBuffer(cpuDataBuffer_.alloc);
-			app_->destroyBuffer(cpuDataBuffer_);
-			app_->destroyBuffer(devDataBuffer_);
+			cpuDataPtr_ = nullptr;
+			dealloc_(cpuDataBuffer_.alloc, cpuDataBuffer_, devDataBuffer_, dataCapacity_);
 		}
 
 	public:
@@ -160,13 +166,22 @@ namespace {
 
 		void resizeExact(vk::DeviceSize newSize, vk::DeviceSize newCapacity) {
 			if(newSize == 0) {
-				dealloc_();
+				if(dataCapacity_ != 0) dealloc_();
 			} else {
-				auto old_cpuDataPtr = cpuDataPtr_;
-				allocWithTraits_(newCapacity);
-				memcpy(old_cpuDataPtr, cpuDataPtr_, std::min(dataSize_, newSize));
+				if(newCapacity != dataCapacity_) {
+					auto old_dataCapacity = dataCapacity_;
+					auto old_cpuDataPtr = cpuDataPtr_;
+					auto old_cpuDataBuffer = cpuDataBuffer_;
+					auto old_devDataBuffer = devDataBuffer_;
+					cpuDataPtr_ = nullptr;
+					allocWithTraits_(newCapacity);
+					memcpy(old_cpuDataPtr, cpuDataPtr_, std::min(dataSize_, newSize));
+					dataCapacity_ = newCapacity;
+					if(old_dataCapacity != 0) {
+						dealloc_(old_cpuDataBuffer.alloc, old_cpuDataBuffer, old_devDataBuffer, old_dataCapacity);
+					}
+				}
 				dataSize_ = newSize;
-				dataCapacity_ = newCapacity;
 			}
 		}
 
@@ -227,6 +242,7 @@ namespace {
 		bool dragView;
 		bool speedMod;
 		bool toggleFullscreen;
+		bool createObj;
 	};
 
 
@@ -394,6 +410,7 @@ namespace {
 		MAP_KEY(GLFW_KEY_A) { ctrlCtx->bcwMoveVector.x = pressed? 1.0f : 0.0f; };
 		MAP_KEY(GLFW_KEY_R) { ctrlCtx->bcwMoveVector.y = pressed? 1.0f : 0.0f; };
 		MAP_KEY(GLFW_KEY_F) { ctrlCtx->fwdMoveVector.y = pressed? 1.0f : 0.0f; };
+		MAP_KEY(GLFW_KEY_N) { if(!pressed) ctrlCtx->createObj = true; };
 
 		MAP_KEY(GLFW_KEY_ENTER) {
 			if((! pressed) && (mod & GLFW_MOD_ALT)) {
@@ -458,7 +475,7 @@ namespace {
 			.fwdMoveVector = { }, .bcwMoveVector = { },
 			.rotate = { }, .lastCursorPos = { },
 			.shaderSelector = 0, .dragView = false, .speedMod = false,
-			.toggleFullscreen = false };
+			.toggleFullscreen = false, .createObj = false };
 		dst.keymap = mk_key_bindings(app.glfwWindow(), &dst.ctrlCtx);
 		dst.rngDistr = std::uniform_real_distribution<float>(0.0f, 1.0f);
 		dst.turnSpeedKey = opts.viewParams.viewTurnSpeedKey;
@@ -698,6 +715,32 @@ namespace {
 	}
 
 
+	void create_object(RenderContext& ctx) {
+		auto floatRnd = [&ctx]() {
+			constexpr unsigned mod = std::numeric_limits<unsigned>::max();
+			return static_cast<float>(static_cast<unsigned>(ctx.rng()) % mod) / mod;
+		};
+		ctx.objects.push_back(Object {
+			.mdlWr = [&ctx]() {
+				auto cur = ctx.mdlCache.begin();
+				auto end = ctx.mdlCache.end();
+				while((ctx.rng() % ctx.mdlCache.size()) != 0) {
+					++cur;
+					if(cur == end) cur = ctx.mdlCache.begin();
+				}
+				return ModelWrapper(cur->second,
+					ctx.rpass.descriptorPool(),
+					ctx.rpass.descriptorSetLayouts()[ubo::Model::set]);
+			} (),
+			.position = glm::vec3(floatRnd()*4.0f, floatRnd()*4.0f, floatRnd()*4.0f),
+			.orientation = glm::vec3(floatRnd()*15.0f, floatRnd()*15.0f, floatRnd()*15.0f),
+			.scale = glm::vec3(1.0f, 1.0f, 1.0f),
+			.color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f),
+			.rnd = floatRnd()
+		});
+	}
+
+
 	void process_input(
 			RenderContext& ctx, glm::mat4& orientationMat
 	) {
@@ -725,6 +768,11 @@ namespace {
 				(ctx.ctrlCtx.fwdMoveVector - ctx.ctrlCtx.bcwMoveVector);
 			glm::vec4 deltaPosRotated = glm::transpose(orientationMat) * glm::vec4(deltaPos, 1.0f);
 			ctx.position += glm::vec3(deltaPosRotated);
+		} { // Create an object, if requested
+			if(ctx.ctrlCtx.createObj) {
+				create_object(ctx);
+				ctx.ctrlCtx.createObj = false;
+			}
 		}
 	}
 
@@ -822,8 +870,6 @@ namespace vka2 {
 						continue; }
 					ubo::Frame frameUbo;
 					mk_frame_ubo(ctx, orientationMat, frameUbo);
-ctx.objects[0].orientation.x += ctx.frameTiming.frameTime;
-ctx.objects[1].orientation.x += 2 * ctx.frameTiming.frameTime;
 					mk_instances(ctx.objects, ctx.instances);
 					ctx.instances.syncDevice(nullptr);
 					auto draw = [&ctx](

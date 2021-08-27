@@ -316,8 +316,8 @@ namespace vka2 {
 	Texture::Texture(Application& app, const Data& data, bool linearFilter):
 			_app(&app)
 	{
-		_img = stage_image(*_app, data);  util::alloc_tracker.alloc("Texture:_img");
-		_sampler = mk_sampler(*_app, linearFilter, 0.0f, data.mipLevels);  util::alloc_tracker.alloc("Texture:_sampler");
+		_img = stage_image(*_app, data);
+		_sampler = mk_sampler(*_app, linearFilter, 0.0f, data.mipLevels);
 		{
 			vk::ImageViewCreateInfo ivcInfo;
 			ivcInfo.components = vk::ComponentMapping(vk::ComponentSwizzle::eIdentity);
@@ -326,7 +326,8 @@ namespace vka2 {
 			ivcInfo.subresourceRange = vk::ImageSubresourceRange(
 				vk::ImageAspectFlagBits::eColor, 0, data.mipLevels, 0, 1);
 			ivcInfo.viewType = vk::ImageViewType::e2D;
-			_img_view = _app->device().createImageView(ivcInfo);  util::alloc_tracker.alloc("Texture:_img_view");
+			_img_view = _app->device().createImageView(ivcInfo);
+			util::alloc_tracker.alloc("Texture");
 		}
 	}
 
@@ -344,10 +345,11 @@ namespace vka2 {
 
 	Texture::~Texture() {
 		if(_app != nullptr) {
-			_app->device().destroyImageView(_img_view);  util::alloc_tracker.dealloc("Texture:_img_view");
-			_app->device().destroySampler(_sampler);  util::alloc_tracker.dealloc("Texture:_sampler");
-			_app->destroyImage(_img);  util::alloc_tracker.dealloc("Texture:_img");
+			_app->device().destroyImageView(_img_view);
+			_app->device().destroySampler(_sampler);
+			_app->destroyImage(_img);
 			_app = nullptr;
+			util::alloc_tracker.dealloc("Texture");
 		}
 	}
 

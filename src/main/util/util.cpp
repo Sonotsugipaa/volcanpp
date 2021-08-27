@@ -22,7 +22,7 @@ namespace {
 			} else {
 				r = std::string((MAX_CHARS-1)-r.size(), ' ') + r;
 			}
-			return r + "+ "s + nm;
+			return r + c + " "s + nm;
 		}
 	#endif
 
