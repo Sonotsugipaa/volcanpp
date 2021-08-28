@@ -47,12 +47,12 @@ Groups in the `models` list have the following properties:
 
 - `name`: the name of the model, to be referenced by each object; every object
   **must** have a model with a matching name, otherwise how it's rendered
-  is unspecified.
-- `minDiffuse`: the minimum strength for diffuse lighting;
-- `maxDiffuse`: the maximum strength for diffuse lighting;
-- `expSpecular`: the exponent applied to specular lighting;
-- `maxSpecular`: the maximum strength for specular lighting;
-- `mergeVertices`: whether the model normals should be merged together.
+  is unspecified (most likely, the program terminates with a segmentation fault).
+- `minDiffuse`: the minimum multiplier for diffuse reflections;
+- `maxDiffuse`: the maximum multiplier for diffuse reflections;
+- `minSpecular`: the minimum multiplier for specular reflections;
+- `maxSpecular`: the maximum multiplier for specular reflections;
+- `mergeVertices`: whether the model normals should be merged together (defaults to `false`).
 
 ## Examples
 
@@ -81,7 +81,7 @@ models = (
 		name = "model0";
 		minDiffuse = 0.0;
 		maxDiffuse = 0.3;
-		minSpecular = -8.0;
+		minSpecular = -2.0;
 		maxSpecular = 4.0;
 	},
 	{
