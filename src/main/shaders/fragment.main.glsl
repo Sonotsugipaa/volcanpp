@@ -38,7 +38,7 @@ layout(set = 0, binding = 0) uniform StaticUbo {
 layout(set = 1, binding = 0) uniform ModelUbo {
 	float minDiffuse;
 	float maxDiffuse;
-	float expSpecular;
+	float minSpecular;
 	float maxSpecular;
 	float rnd;
 } modelUbo;
@@ -100,7 +100,7 @@ vec3 get_normal_tanspace() {
 float computeDiffusion(vec3 lightdirTan, vec3 normalTanspace) {
 	float r = unnormalize(
 		modelUbo.minDiffuse, modelUbo.maxDiffuse,
-			dot(-frg_nrmTan, normalTanspace * lightdirTan));
+			max(0, dot(-frg_nrmTan, normalTanspace * lightdirTan)));
 	r = max(0, r);
 	return r;
 }
@@ -108,10 +108,8 @@ float computeDiffusion(vec3 lightdirTan, vec3 normalTanspace) {
 
 float computeSpecular(vec3 lightdirTan, vec3 normalTanspace) {
 	float r = unnormalize(
-		0, modelUbo.maxSpecular,
-		pow(
-			dot(frg_eyedirTan, normalTanspace * lightdirTan),
-			modelUbo.expSpecular));
+		modelUbo.minSpecular, modelUbo.maxSpecular,
+		max(0, dot(frg_eyedirTan, normalTanspace * lightdirTan)));
 	r = max(0, r);
 	return r;
 }
@@ -122,10 +120,10 @@ float computeSpecular(vec3 lightdirTan, vec3 normalTanspace) {
 void main_0() {
 	float diffuse = max(0, unnormalize(
 		modelUbo.minDiffuse, modelUbo.maxDiffuse,
-		dot(-frg_lightdirTan, frg_nrmTan)));
+		max(0, dot(-frg_lightdirTan, frg_nrmTan))));
 	out_col =
 		texture(tex_dfsSampler, frg_tex) * frg_col
-		* (diffuse + computeSpecular(frg_lightdirTan, frg_nrmTan));
+		* (diffuse + computeSpecular(frg_lightdirTan, vec3(0.5, 0.5, 1)));
 }
 
 

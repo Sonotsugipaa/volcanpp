@@ -288,6 +288,8 @@ namespace {
 		}
 
 
+		Model::ShPtr operator*() { return _mdl; }
+		const Model::ShPtr operator*() const { return _mdl; }
 		Model::ShPtr operator->() { return _mdl; }
 		const Model::ShPtr operator->() const { return _mdl; }
 	};
@@ -493,7 +495,9 @@ namespace {
 			-opts.viewParams.initialPosition[0],
 			-opts.viewParams.initialPosition[1],
 			-opts.viewParams.initialPosition[2] };
-		dst.orientation = { 0.0f, glm::radians(opts.viewParams.initialPitch) };
+		dst.orientation = {
+			glm::radians(opts.viewParams.initialYaw),
+			glm::radians(opts.viewParams.initialPitch) };
 		dst.frameCounter = 0;
 	}
 
@@ -560,7 +564,6 @@ namespace {
 					RenderPass& rpass
 			) {
 				static_assert(ubo::Model::set == Texture::samplerDescriptorSet);
-				constexpr auto descSetIdx = ubo::Model::set;
 				assert(rpass.swapchain()->application != nullptr);
 				auto* app = rpass.swapchain()->application;
 				dstMainPl->destroy();
@@ -573,7 +576,7 @@ namespace {
 				set_static_ubo(rpass, app->options());
 				for(Object& obj : (*dstObjects)) {
 					obj.mdlWr.recreateDescSet(
-						rpass.descriptorPool(), rpass.descriptorSetLayouts()[descSetIdx]);
+						rpass.descriptorPool(), rpass.descriptorSetLayouts()[ubo::Model::set]);
 				}
 			};
 
@@ -633,26 +636,36 @@ namespace {
 			std::string scenePath = assetPath + "/scene.cfg";
 			util::logDebug() << "Reading scene from \"" << scenePath << '"' << util::endl;
 			scene = Scene::fromCfg(scenePath);
-			util::logDebug() << "Scene has " << scene.objects.size() << " objects" << util::endl;
+			util::logDebug() << "Scene has " << scene.objects.size() << " objects:" << util::endl;
 		} { // Make name -> model associations
 			for(auto& mdlInfo : scene.models) {
-				mdlInfoMap[mdlInfo.name] = &mdlInfo; }
+				util::logDebug() << "- \"" << mdlInfo.name
+					<< "\", (" << mdlInfo.minDiffuse << ", " << mdlInfo.maxDiffuse << "), ("
+					<< mdlInfo.minSpecular << ", " << mdlInfo.maxSpecular << ')' << util::endl;
+				mdlInfoMap[mdlInfo.name] = &mdlInfo;
+			}
 		} { // Create objects
 			for(auto& objInfo : scene.objects) {
 				Model::ObjSources src;
 				src.mdlName = objInfo.modelName;
 				src.objPath = assetPath + "/"s + src.mdlName + ".obj";
 				src.textureLoader = [&app, &src, &worldOpts, &assetPath](Texture::Usage usage) {
+					std::string txtrName;
+					constexpr auto setName = [](std::string& dst, const std::string& value) {
+						dst = value;
+						util::logDebug() << "Loading texture \"" << value << '"' << util::endl;
+					};
 					switch(usage) {
-						case Texture::Usage::eColor: return rd_texture(app,
-							assetPath + "/"s + src.mdlName + ".dfs.png",
-							worldOpts.colorNearestFilter, MISSING_TEXTURE_COLOR);
-						case Texture::Usage::eNormal: return rd_texture(app,
-							assetPath + "/"s + src.mdlName + ".nrm.png",
-							worldOpts.normalNearestFilter, glm::vec4(0.5f, 0.5f, 0.5f, 1.0f));
-						case Texture::Usage::eSpecular: throw std::runtime_error("Unimplemented; " __FILE__ ":" + std::to_string(__LINE__));
-						// case Texture::Usage::eSpecular: return rd_texture(app,
-						// 	src.objPath + ".spc.png", worldOpts.colorNearestFilter, glm::vec4(1.0f));
+						case Texture::Usage::eColor:
+							setName(txtrName, assetPath + "/"s + src.mdlName + ".dfs.png");
+							return rd_texture(app, txtrName,
+								worldOpts.colorNearestFilter, MISSING_TEXTURE_COLOR);
+						case Texture::Usage::eNormal:
+							setName(txtrName, assetPath + "/"s + src.mdlName + ".nrm.png");
+							return rd_texture(app, txtrName,
+								worldOpts.normalNearestFilter, glm::vec4(0.5f, 0.5f, 0.5f, 1.0f));
+						case Texture::Usage::eSpecular:
+							throw std::runtime_error("Unimplemented; " __FILE__ ":" + std::to_string(__LINE__));
 						default: throw std::logic_error("invalid value of vka2::Texture::Usage");
 					}
 				};
@@ -688,7 +701,7 @@ namespace {
 						*ubo.data = ubo::Model {
 							.minDiffuse = mdlInfo.minDiffuse,
 							.maxDiffuse = mdlInfo.maxDiffuse,
-							.expSpecular = mdlInfo.expSpecular,
+							.minSpecular = mdlInfo.minSpecular,
 							.maxSpecular = mdlInfo.maxSpecular,
 							.rnd = dst.rngDistr(dst.rng) };
 						return true;
@@ -720,22 +733,23 @@ namespace {
 			constexpr unsigned mod = std::numeric_limits<unsigned>::max();
 			return static_cast<float>(static_cast<unsigned>(ctx.rng()) % mod) / mod;
 		};
+		const Object& clonee = [&ctx]() -> const Object& {
+			return ctx.objects[ctx.rng() % ctx.objects.size()];
+		} ();
 		ctx.objects.push_back(Object {
-			.mdlWr = [&ctx]() {
-				auto cur = ctx.mdlCache.begin();
-				auto end = ctx.mdlCache.end();
-				while((ctx.rng() % ctx.mdlCache.size()) != 0) {
-					++cur;
-					if(cur == end) cur = ctx.mdlCache.begin();
-				}
-				return ModelWrapper(cur->second,
-					ctx.rpass.descriptorPool(),
-					ctx.rpass.descriptorSetLayouts()[ubo::Model::set]);
-			} (),
-			.position = glm::vec3(floatRnd()*4.0f, floatRnd()*4.0f, floatRnd()*4.0f),
-			.orientation = glm::vec3(floatRnd()*15.0f, floatRnd()*15.0f, floatRnd()*15.0f),
-			.scale = glm::vec3(1.0f, 1.0f, 1.0f),
-			.color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f),
+			.mdlWr = ModelWrapper(*clonee.mdlWr,
+				ctx.rpass.descriptorPool(),
+				ctx.rpass.descriptorSetLayouts()[ubo::Model::set] ),
+			.position = glm::vec3(
+				clonee.position.x + (floatRnd() * 4.0f),
+				clonee.position.y + (floatRnd() * 4.0f),
+				clonee.position.z + (floatRnd() * 4.0f) ),
+			.orientation = glm::vec3(
+				clonee.orientation.x + (floatRnd() * 15.0f),
+				clonee.orientation.x + (floatRnd() * 15.0f),
+				clonee.orientation.x + (floatRnd() * 15.0f) ),
+			.scale = clonee.scale,
+			.color = clonee.color,
 			.rnd = floatRnd()
 		});
 	}

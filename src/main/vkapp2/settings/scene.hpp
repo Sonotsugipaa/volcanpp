@@ -46,7 +46,7 @@ namespace vka2 {
 			std::string name = "";
 			float minDiffuse = 0.0f;
 			float maxDiffuse = 0.7f;
-			float expSpecular = 1.0f;
+			float minSpecular = 0.0f;
 			float maxSpecular = 0.3f;
 			bool mergeVertices:1 = false;
 		};

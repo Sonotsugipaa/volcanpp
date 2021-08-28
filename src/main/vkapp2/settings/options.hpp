@@ -76,6 +76,8 @@ namespace vka2 {
 		struct ViewParams {
 			// The initial view position.
 			std::array<float, 3> initialPosition = { 0.0f, 1.0f, -3.0f };
+			// The initial yaw of the view.
+			float initialYaw = 0.0f;
 			// The initial pitch of the view.
 			float initialPitch = -25.0f;
 			// How many degrees the image has to span vertically.
