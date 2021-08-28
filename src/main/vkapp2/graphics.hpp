@@ -246,6 +246,23 @@ namespace vka2 {
 		vk::Fence _fence_shared;
 
 	public:
+		/** This type of object is responsible for freeing
+		 * a temporary command buffer through RAII, but *not*
+		 * for allocating one. */
+		class BufferHandle {
+		public:
+			CommandPool* cmdPool;
+			vk::CommandBuffer cmdBuffer;
+
+			BufferHandle();
+			BufferHandle(const BufferHandle&) = delete;
+			BufferHandle(BufferHandle&&);
+			BufferHandle(CommandPool*, vk::CommandBuffer);
+			~BufferHandle();
+			BufferHandle& operator=(const BufferHandle&) = delete;
+			BufferHandle& operator=(BufferHandle&&);
+		};
+
 		CommandPool() = default;
 		CommandPool(vk::Device&, unsigned queueFamilyIndex, bool transientCommands);
 		void destroy();
@@ -254,8 +271,13 @@ namespace vka2 {
 
 		void runCmds(
 			vk::Queue,
+			std::function<void (vk::CommandBuffer)>);
+
+		[[nodiscard("The returned handle deallocates a command buffer when destroyed")]]
+		BufferHandle runCmdsAsync(
+			vk::Queue,
 			std::function<void (vk::CommandBuffer)>,
-			vk::Fence = nullptr);
+			vk::Fence);
 
 		GETTER_VAL(_pool, handle)
 	};

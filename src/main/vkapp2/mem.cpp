@@ -86,7 +86,7 @@ namespace vka2 {
 				[dst, srcSize, mmapd, stagingBuffer](vk::CommandBuffer cmd) {
 					auto cp = vk::BufferCopy(0, 0, srcSize);
 					cmd.copyBuffer(stagingBuffer, dst, cp);
-				}, nullptr);
+				});
 		}
 		vmaDestroyBuffer(_data.alloc, stagingBuffer, stagingAlloc);
 	}

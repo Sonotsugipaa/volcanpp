@@ -354,7 +354,7 @@ namespace {
 		) {
 			imgData.staticUboWrCounter = staticUboWrCounter;
 			asc.application->device().resetFences(imgData.fenceStaticUboUpToDate);
-			asc.application->transferCommandPool().runCmds(
+			auto cmdHandle = asc.application->transferCommandPool().runCmdsAsync(
 				asc.application->queues().transfer,
 				[&imgData, &staticUboBase](vk::CommandBuffer cmd) {
 					constexpr auto cp = vk::BufferCopy(0, 0, sizeof(ubo::Static));
@@ -364,10 +364,10 @@ namespace {
 			vk::Result result = asc.application->device().waitForFences(
 				imgData.fenceStaticUboUpToDate, true, UINT64_MAX);
 			if(result != vk::Result::eSuccess) {
-					throw std::runtime_error(formatVkErrorMsg(
-						"failed to wait on a fence while running a render pass",
-						vk::to_string(result)));
-				}
+				throw std::runtime_error(formatVkErrorMsg(
+					"failed to wait on a fence while running a render pass",
+					vk::to_string(result)));
+			}
 		}
 
 

@@ -206,7 +206,8 @@ namespace {
 
 		const BufferAlloc& devBuffer() const { assert(app_ != nullptr); return devDataBuffer_; }
 
-		void syncDevice(vk::Fence fence, vk::DeviceSize beg, vk::DeviceSize end) {
+		[[nodiscard]]
+		CommandPool::BufferHandle flushAsync(vk::Fence fence, vk::DeviceSize beg, vk::DeviceSize end) {
 			assert(beg <= dataSize_);
 			assert(end <= dataSize_);
 			assert(beg <= end);
@@ -215,14 +216,30 @@ namespace {
 				auto& cmdPool = app_->transferCommandPool();
 				cp.srcOffset = cp.dstOffset = beg * sizeof(T);
 				cp.setSize((end - beg) * sizeof(T));
-				cmdPool.runCmds(app_->queues().transfer, [&](vk::CommandBuffer cmd) {
-					cmd.copyBuffer(cpuDataBuffer_.handle, devDataBuffer_.handle, cp);
-				}, fence);
+				if(fence) {
+					return cmdPool.runCmdsAsync(app_->queues().transfer, [&](vk::CommandBuffer cmd) {
+						cmd.copyBuffer(cpuDataBuffer_.handle, devDataBuffer_.handle, cp);
+					}, fence);
+				} else {
+					cmdPool.runCmds(app_->queues().transfer, [&](vk::CommandBuffer cmd) {
+						cmd.copyBuffer(cpuDataBuffer_.handle, devDataBuffer_.handle, cp);
+					});
+				}
 			}
+			return { };
 		}
 
-		void syncDevice(vk::Fence fence) {
-			syncDevice(fence, 0, dataSize_);
+		[[nodiscard]]
+		CommandPool::BufferHandle flushAsync(vk::Fence fence) {
+			return flushAsync(fence, 0, dataSize_);
+		}
+
+		void flush(vk::DeviceSize beg, vk::DeviceSize end) {
+			auto cmdHandle = flushAsync(nullptr, beg, end);
+		}
+
+		void flush() {
+			auto cmdHandle = flushAsync(nullptr);
 		}
 	};
 
@@ -413,6 +430,7 @@ namespace {
 		MAP_KEY(GLFW_KEY_R) { ctrlCtx->bcwMoveVector.y = pressed? 1.0f : 0.0f; };
 		MAP_KEY(GLFW_KEY_F) { ctrlCtx->fwdMoveVector.y = pressed? 1.0f : 0.0f; };
 		MAP_KEY(GLFW_KEY_N) { if(!pressed) ctrlCtx->createObj = true; };
+		MAP_KEY(GLFW_KEY_C) { std::quick_exit(1); };
 
 		MAP_KEY(GLFW_KEY_ENTER) {
 			if((! pressed) && (mod & GLFW_MOD_ALT)) {
@@ -885,7 +903,7 @@ namespace vka2 {
 					ubo::Frame frameUbo;
 					mk_frame_ubo(ctx, orientationMat, frameUbo);
 					mk_instances(ctx.objects, ctx.instances);
-					ctx.instances.syncDevice(nullptr);
+					ctx.instances.flush();
 					auto draw = [&ctx](
 							RenderPass::FrameHandle& fh, vk::CommandBuffer cmd,
 							const Object& obj, uint32_t instanceIdx,

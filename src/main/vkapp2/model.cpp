@@ -51,6 +51,7 @@ namespace {
 			Application& app,
 			const Vertices& vtx, const Indices& idx
 	) {
+		std::vector<CommandPool::BufferHandle> cmdHandles;
 		VmaAllocator alloc = app.allocator();
 		std::pair<BufferAlloc, BufferAlloc> r;
 		size_t vtxSizeBytes = vtx.size() * sizeof(Vertex);
@@ -81,14 +82,16 @@ namespace {
 			memcpy(mmapd, vtx.data(), vtxSizeBytes);
 			memcpy(reinterpret_cast<Vertex*>(mmapd) + vtx.size(), idx.data(), idxSizeBytes);
 			cp.size = vtxSizeBytes;
-			cmdPool.runCmds(app.queues().transfer, [&](vk::CommandBuffer cmd) {
-				cmd.copyBuffer(stagingBuf.handle, r.first.handle, cp);
-			}, fences[0]);
+			cmdHandles.push_back(
+				cmdPool.runCmdsAsync(app.queues().transfer, [&](vk::CommandBuffer cmd) {
+					cmd.copyBuffer(stagingBuf.handle, r.first.handle, cp);
+				}, fences[0]) );
 			cp.srcOffset = vtxSizeBytes;
 			cp.size = idxSizeBytes;
-			cmdPool.runCmds(app.queues().transfer, [&](vk::CommandBuffer cmd) {
-				cmd.copyBuffer(stagingBuf.handle, r.second.handle, cp);
-			}, fences[1]);
+			cmdHandles.push_back(
+				cmdPool.runCmdsAsync(app.queues().transfer, [&](vk::CommandBuffer cmd) {
+					cmd.copyBuffer(stagingBuf.handle, r.second.handle, cp);
+				}, fences[1]) );
 		} {
 			auto result = app.device().waitForFences(fences, true, UINT64_MAX);
 			if(result != vk::Result::eSuccess) {

@@ -28,6 +28,45 @@
 
 namespace vka2 {
 
+	CommandPool::BufferHandle::BufferHandle():
+			cmdPool(nullptr),
+			cmdBuffer(nullptr)
+	{ }
+
+	CommandPool::BufferHandle::BufferHandle(BufferHandle&& mv):
+			cmdPool(std::move(mv.cmdPool)),
+			cmdBuffer(std::move(mv.cmdBuffer))
+	{
+		#ifndef NDEBUG
+			mv.cmdPool = nullptr;
+		#endif
+		mv.cmdBuffer = nullptr;
+	}
+
+	CommandPool::BufferHandle::BufferHandle(CommandPool* cmdPool, vk::CommandBuffer cmd):
+			cmdPool(cmdPool),
+			cmdBuffer(cmd)
+	{
+		assert(cmdPool != nullptr);
+	}
+
+	CommandPool::BufferHandle::~BufferHandle() {
+		if(cmdBuffer) {
+			assert(cmdPool != nullptr);
+			cmdPool->_dev->freeCommandBuffers(cmdPool->_pool, { cmdBuffer });
+			// util::alloc_tracker.dealloc("CommandPool:CommandBuffer"); // Leads to excessive clutter
+			#ifndef NDEBUG
+				cmdBuffer = nullptr;
+			#endif
+		}
+	}
+
+	CommandPool::BufferHandle& CommandPool::BufferHandle::operator=(BufferHandle&& mv) {
+		this->~BufferHandle();
+		return *new (this) BufferHandle(std::move(mv));
+	}
+
+
 	CommandPool::CommandPool(vk::Device& dev, unsigned qFamIdx, bool transient):
 			_dev(&dev),
 			_pool(_dev->createCommandPool(vk::CommandPoolCreateInfo(
@@ -56,37 +95,59 @@ namespace vka2 {
 	}
 
 
-	void CommandPool::runCmds(
+	vk::CommandBuffer alloc_cmd_buffer(
+			vk::Device* dev,
+			vk::CommandPool pool,
+			vk::CommandBufferLevel lvl
+	) {
+		auto cbaInfo = vk::CommandBufferAllocateInfo(pool, lvl, 1);
+		auto r = dev->allocateCommandBuffers(
+			cbaInfo).front();
+		// util::alloc_tracker.alloc("CommandPool:CommandBuffer"); // Leads to excessive clutter
+		return r;
+	}
+
+
+	CommandPool::BufferHandle CommandPool::runCmdsAsync(
 			vk::Queue queue,
 			std::function<void (vk::CommandBuffer)> fn,
 			vk::Fence fence
 	) {
-		vk::CommandBuffer cmdBuffer;
-		{
-			auto cbaInfo = vk::CommandBufferAllocateInfo(_pool,
-				vk::CommandBufferLevel::ePrimary, 1);
-			cmdBuffer = _dev->allocateCommandBuffers(
-				cbaInfo).front();
-		} {
-			using vk::CommandBufferUsageFlagBits;
-			auto cbbInfo = vk::CommandBufferBeginInfo(
-				CommandBufferUsageFlagBits::eOneTimeSubmit);
-			cmdBuffer.begin(cbbInfo);
-		}
+		assert(fence);
+		vk::CommandBuffer cmdBuffer = alloc_cmd_buffer(
+			_dev, _pool, vk::CommandBufferLevel::ePrimary);
+		auto cbbInfo = vk::CommandBufferBeginInfo(
+			vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+		cmdBuffer.begin(cbbInfo);
 		fn(cmdBuffer);
 		cmdBuffer.end();
-		if(! fence) {
-			// If no fence was given, syncronize with the shared fence
+		queue.submit(vk::SubmitInfo({ }, { }, cmdBuffer), fence);
+		return BufferHandle(this, cmdBuffer);
+	}
+
+
+	void CommandPool::runCmds(
+			vk::Queue queue,
+			std::function<void (vk::CommandBuffer)> fn
+	) {
+		vk::CommandBuffer cmdBuffer;
+		assert(_dev->getFenceStatus(_fence_shared) == vk::Result::eNotReady);
+		{
+			cmdBuffer = alloc_cmd_buffer(
+			_dev, _pool, vk::CommandBufferLevel::ePrimary);
+			auto cbbInfo = vk::CommandBufferBeginInfo(
+				vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+			cmdBuffer.begin(cbbInfo);
+			fn(cmdBuffer);
+			cmdBuffer.end();
 			queue.submit(vk::SubmitInfo({ }, { }, cmdBuffer), _fence_shared);
-			auto result = _dev->waitForFences(_fence_shared, true, UINT64_MAX);
-			if(result != vk::Result::eSuccess) {
-				throw std::runtime_error(formatVkErrorMsg(
-					"failed to wait on a CommandPool shared fence", vk::to_string(result)));
-			}
-			_dev->resetFences(_fence_shared);
-		} else {
-			// If a fence was given, use that one
-			queue.submit(vk::SubmitInfo({ }, { }, cmdBuffer), fence);
 		}
+		auto result = _dev->waitForFences(_fence_shared, true, UINT64_MAX);
+		if(result != vk::Result::eSuccess) {
+			throw std::runtime_error(formatVkErrorMsg(
+				"failed to wait on a CommandPool shared fence", vk::to_string(result)));
+		}
+		_dev->resetFences(_fence_shared);
+		_dev->freeCommandBuffers(_pool, { cmdBuffer });
 	}
 }
