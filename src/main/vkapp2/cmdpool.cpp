@@ -131,7 +131,6 @@ namespace vka2 {
 			std::function<void (vk::CommandBuffer)> fn
 	) {
 		vk::CommandBuffer cmdBuffer;
-		assert(_dev->getFenceStatus(_fence_shared) == vk::Result::eNotReady);
 		{
 			cmdBuffer = alloc_cmd_buffer(
 			_dev, _pool, vk::CommandBufferLevel::ePrimary);

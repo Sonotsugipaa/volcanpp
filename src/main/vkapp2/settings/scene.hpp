@@ -54,6 +54,7 @@ namespace vka2 {
 
 		std::vector<Object> objects;
 		std::vector<Model> models;
+		std::array<float, 4> pointLight;
 
 
 		static Scene fromCfg(const std::string& cfgPath);

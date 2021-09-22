@@ -68,7 +68,7 @@ namespace {
 		}
 		r.size = r.width * r.height * r.channels;
 		r.data = pixels;
-		r.dataFormat = vk::Format::eR8G8B8A8Srgb;
+		r.dataFormat = vk::Format::eR8G8B8A8Unorm;
 		r.mipLevels = compute_mip_levels(r.width, r.height);
 		return r;
 	}

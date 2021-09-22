@@ -260,6 +260,7 @@ namespace {
 		bool speedMod;
 		bool toggleFullscreen;
 		bool createObj;
+		bool movePointLightMod;
 	};
 
 
@@ -341,6 +342,7 @@ namespace {
 		std::uniform_real_distribution<float> rngDistr;
 		std::vector<Object> objects;
 		DeviceVector<Instance> instances;
+		glm::vec4 pointLight;
 		glm::vec3 lightDirection;
 		glm::vec3 position;
 		glm::vec2 orientation;
@@ -431,6 +433,7 @@ namespace {
 		MAP_KEY(GLFW_KEY_F) { ctrlCtx->fwdMoveVector.y = pressed? 1.0f : 0.0f; };
 		MAP_KEY(GLFW_KEY_N) { if(!pressed) ctrlCtx->createObj = true; };
 		MAP_KEY(GLFW_KEY_C) { std::quick_exit(1); };
+		MAP_KEY(GLFW_KEY_LEFT_CONTROL) { ctrlCtx->movePointLightMod = pressed; };
 
 		MAP_KEY(GLFW_KEY_ENTER) {
 			if((! pressed) && (mod & GLFW_MOD_ALT)) {
@@ -495,7 +498,8 @@ namespace {
 			.fwdMoveVector = { }, .bcwMoveVector = { },
 			.rotate = { }, .lastCursorPos = { },
 			.shaderSelector = 0, .dragView = false, .speedMod = false,
-			.toggleFullscreen = false, .createObj = false };
+			.toggleFullscreen = false, .createObj = false,
+			.movePointLightMod = false };
 		dst.keymap = mk_key_bindings(app.glfwWindow(), &dst.ctrlCtx);
 		dst.rngDistr = std::uniform_real_distribution<float>(0.0f, 1.0f);
 		dst.turnSpeedKey = opts.viewParams.viewTurnSpeedKey;
@@ -662,6 +666,12 @@ namespace {
 					<< mdlInfo.minSpecular << ", " << mdlInfo.maxSpecular << ')' << util::endl;
 				mdlInfoMap[mdlInfo.name] = &mdlInfo;
 			}
+		} { // Set the point light
+			dst.pointLight = glm::vec4 {
+				scene.pointLight[0],
+				scene.pointLight[1],
+				scene.pointLight[2],
+				scene.pointLight[3] };
 		} { // Create objects
 			for(auto& objInfo : scene.objects) {
 				Model::ObjSources src;
@@ -799,7 +809,11 @@ namespace {
 			glm::vec3 deltaPos = adjustedMoveSpeed * ctx.frameTiming.frameTime *
 				(ctx.ctrlCtx.fwdMoveVector - ctx.ctrlCtx.bcwMoveVector);
 			glm::vec4 deltaPosRotated = glm::transpose(orientationMat) * glm::vec4(deltaPos, 1.0f);
-			ctx.position += glm::vec3(deltaPosRotated);
+			if(ctx.ctrlCtx.movePointLightMod) {
+				ctx.pointLight -= glm::vec4(deltaPosRotated.x, deltaPosRotated.y, deltaPosRotated.z, 0.0f);
+			} else {
+				ctx.position -= glm::vec3(deltaPosRotated);
+			}
 		} { // Create an object, if requested
 			if(ctx.ctrlCtx.createObj) {
 				create_object(ctx);
@@ -860,7 +874,9 @@ namespace {
 	) {
 		dst.viewTransf = glm::mat4(1.0f);
 		dst.viewTransf = orientationMat * dst.viewTransf;
-		dst.viewTransf = glm::translate(dst.viewTransf, ctx.position);
+		dst.viewTransf = glm::translate(dst.viewTransf, -ctx.position);
+		dst.viewPos = ctx.position;
+		dst.pointLight = ctx.pointLight;
 		dst.lightDirection = ctx.lightDirection;
 		dst.shaderSelector = ctx.ctrlCtx.shaderSelector;
 		dst.rnd = ctx.rngDistr(ctx.rng);

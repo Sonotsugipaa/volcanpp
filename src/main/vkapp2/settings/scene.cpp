@@ -78,6 +78,13 @@ namespace vka2 {
 			}
 			#undef GET_VALUE
 			#undef GET_ARRAY
+		} {
+			auto& pointLightElem = cfg.getRoot()["pointLight"];
+			r.pointLight = { 0.0f, 0.0f, 0.0f, 1.0f };
+			std::copy(
+				pointLightElem.begin(),
+				pointLightElem.begin() + std::min<int>(r.pointLight.size(), pointLightElem.end() - pointLightElem.begin()),
+				r.pointLight.begin());
 		}
 		return r;
 	}

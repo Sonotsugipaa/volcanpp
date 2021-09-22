@@ -167,6 +167,8 @@ namespace vka2 {
 			static constexpr unsigned set = 2;
 			static constexpr unsigned binding = 0;
 			SPIRV_ALIGNED(glm::mat4)  viewTransf;
+			SPIRV_ALIGNED(glm::vec3)  viewPos; // Should be consistent with the matrix transform for proper specular lighting
+			SPIRV_ALIGNED(glm::vec4)  pointLight; // Position XYZ, intensity
 			SPIRV_ALIGNED(glm::vec3)  lightDirection;
 			SPIRV_ALIGNED(float)      rnd; // Different for every frame
 			SPIRV_ALIGNED(uint32_t)   shaderSelector;

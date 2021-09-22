@@ -45,6 +45,8 @@ layout(set = 1, binding = 0) uniform ModelUbo {
 
 layout(set = 2, binding = 0) uniform FrameUbo {
 	mat4 view;
+	vec3 viewPos;
+	vec4 pointLight;
 	vec3 lightDirection;
 	float rnd;
 	uint shaderSelector;
