@@ -96,20 +96,28 @@ namespace {
 		}
 
 		void dealloc_(
+				RenderPass* rpass,
 				VmaAllocation vmaAlloc,
 				BufferAlloc& cpuBuffer, BufferAlloc& devBuffer,
 				vk::DeviceSize capacity
 		) {
 			util::alloc_tracker.dealloc("::DeviceVector<"s + std::to_string(sizeof(T)) + "B>::T"s, capacity);
+			if(rpass == nullptr) {
+				app_->device().waitIdle();
+			} else {
+				rpass->waitIdle();
+			}
 			app_->unmapBuffer(vmaAlloc);
 			app_->destroyBuffer(cpuBuffer);
 			app_->destroyBuffer(devBuffer);
 		}
 
-		void dealloc_() {
+		void dealloc_(
+				RenderPass* rpass
+		) {
 			assert(app_ != nullptr);
 			cpuDataPtr_ = nullptr;
-			dealloc_(cpuDataBuffer_.alloc, cpuDataBuffer_, devDataBuffer_, dataCapacity_);
+			dealloc_(rpass, cpuDataBuffer_.alloc, cpuDataBuffer_, devDataBuffer_, dataCapacity_);
 		}
 
 	public:
@@ -146,7 +154,7 @@ namespace {
 		~DeviceVector() {
 			if(app_ != nullptr) {
 				if(dataSize_ != 0) {
-					dealloc_();
+					dealloc_(nullptr);
 				}
 				app_ = nullptr;
 			}
@@ -164,9 +172,9 @@ namespace {
 		vk::DeviceSize size() const { return dataSize_; }
 		vk::DeviceSize capacity() const { return dataCapacity_; }
 
-		void resizeExact(vk::DeviceSize newSize, vk::DeviceSize newCapacity) {
+		void resizeExact(RenderPass* rpass, vk::DeviceSize newSize, vk::DeviceSize newCapacity) {
 			if(newSize == 0) {
-				if(dataCapacity_ != 0) dealloc_();
+				if(dataCapacity_ != 0) dealloc_(rpass);
 			} else {
 				if(newCapacity != dataCapacity_) {
 					auto old_dataCapacity = dataCapacity_;
@@ -178,19 +186,19 @@ namespace {
 					memcpy(old_cpuDataPtr, cpuDataPtr_, std::min(dataSize_, newSize));
 					dataCapacity_ = newCapacity;
 					if(old_dataCapacity != 0) {
-						dealloc_(old_cpuDataBuffer.alloc, old_cpuDataBuffer, old_devDataBuffer, old_dataCapacity);
+						dealloc_(rpass, old_cpuDataBuffer.alloc, old_cpuDataBuffer, old_devDataBuffer, old_dataCapacity);
 					}
 				}
 				dataSize_ = newSize;
 			}
 		}
 
-		void resize(vk::DeviceSize newSize) {
+		void resize(RenderPass* rpass, vk::DeviceSize newSize) {
 			if(newSize != 0) {
 				if(newSize > dataSize_) {
 					vk::DeviceSize pow = 1;
 					while(pow < newSize) pow *= 2;
-					resizeExact(newSize, pow);
+					resizeExact(rpass, newSize, pow);
 				}
 			}
 		}
@@ -663,7 +671,8 @@ namespace {
 			for(auto& mdlInfo : scene.models) {
 				util::logDebug() << "- \"" << mdlInfo.name
 					<< "\", (" << mdlInfo.minDiffuse << ", " << mdlInfo.maxDiffuse << "), ("
-					<< mdlInfo.minSpecular << ", " << mdlInfo.maxSpecular << ')' << util::endl;
+					<< mdlInfo.minSpecular << ", " << mdlInfo.maxSpecular << ", "
+					<< mdlInfo.shininess << ')' << util::endl;
 				mdlInfoMap[mdlInfo.name] = &mdlInfo;
 			}
 		} { // Set the point light
@@ -731,6 +740,7 @@ namespace {
 							.maxDiffuse = mdlInfo.maxDiffuse,
 							.minSpecular = mdlInfo.minSpecular,
 							.maxSpecular = mdlInfo.maxSpecular,
+							.shininess = mdlInfo.shininess,
 							.rnd = dst.rngDistr(dst.rng) };
 						return true;
 					});
@@ -841,12 +851,13 @@ namespace {
 
 
 	void mk_instances(
+			RenderPass& rpass,
 			const std::vector<Object>& objects,
 			DeviceVector<Instance>& dst
 	) {
 		size_t i = 0;
 		if(dst.size() != objects.size()) {
-			dst.resize(objects.size());
+			dst.resize(&rpass, objects.size());
 		}
 		for(const auto& obj : objects) {
 			Instance& inst = dst[i];
@@ -918,7 +929,7 @@ namespace vka2 {
 						continue; }
 					ubo::Frame frameUbo;
 					mk_frame_ubo(ctx, orientationMat, frameUbo);
-					mk_instances(ctx.objects, ctx.instances);
+					mk_instances(ctx.rpass, ctx.objects, ctx.instances);
 					ctx.instances.flush();
 					auto draw = [&ctx](
 							RenderPass::FrameHandle& fh, vk::CommandBuffer cmd,

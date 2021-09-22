@@ -48,6 +48,7 @@ namespace vka2 {
 			float maxDiffuse = 0.7f;
 			float minSpecular = 0.0f;
 			float maxSpecular = 0.3f;
+			float shininess = 16.0f;
 			bool mergeVertices:1 = false;
 		};
 

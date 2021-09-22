@@ -40,6 +40,7 @@ layout(set = 1, binding = 0) uniform ModelUbo {
 	float maxDiffuse;
 	float minSpecular;
 	float maxSpecular;
+	float shininess;
 	float rnd;
 } modelUbo;
 

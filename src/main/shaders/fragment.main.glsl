@@ -40,6 +40,7 @@ layout(set = 1, binding = 0) uniform ModelUbo {
 	float maxDiffuse;
 	float minSpecular;
 	float maxSpecular;
+	float shininess;
 	float rnd;
 } modelUbo;
 
@@ -62,10 +63,21 @@ layout(location = 1) in vec3 frg_lightDirTan;
 layout(location = 2) in vec3 frg_nrmTan;
 layout(location = 3) in vec4 frg_col;
 layout(location = 4) in vec3 frg_worldPos;
-layout(location = 5) in mat3 frg_tbn;
 layout(location = 8) in mat3 frg_tbnInverse;
 
 layout(location = 0) out vec4 out_col;
+
+
+
+struct PointLightInfo {
+	vec4 dirTan; // DIRection in TANgent space (4th component is the light-fragment distance)
+};
+
+PointLightInfo mkPointLightInfo(vec3 lightPos) {
+	return PointLightInfo(vec4(
+			normalize(frg_tbnInverse * (lightPos - frg_worldPos)),
+			distance(lightPos, frg_worldPos)));
+}
 
 
 
@@ -105,46 +117,45 @@ float rayDiffusion(vec3 lightDirTan, vec3 nrmTan) {
 	float r = modelUbo.minDiffuse;
 	if(-0.5 < dot(-lightDirTan, frg_nrmTan)) {
 		r = dot(-lightDirTan, nrmTan);
+		r = max(0, r);
 		r = unnormalize(modelUbo.minDiffuse, modelUbo.maxDiffuse, r);
 		r = max(0, r);
 	}
 	return r;
 }
 
-float pointDiffusion(vec3 lightPos, vec3 nrmTan, float intensity) {
-	float dist = distance(lightPos, frg_worldPos);
-	vec3 dirTan = -normalize(frg_tbnInverse * (lightPos - frg_worldPos.xyz));
-	return (intensity / dist) * rayDiffusion(dirTan, nrmTan);
+float pointDiffusion(PointLightInfo pli, vec3 nrmTan, float intensity) {
+	return (intensity / pli.dirTan.w) * rayDiffusion(-pli.dirTan.xyz, nrmTan);
 }
 
 
 float raySpecular(vec3 lightDirTan, vec3 nrmTan) {
 	float r = modelUbo.minSpecular;
 	if(-0.5 < dot(-lightDirTan, frg_nrmTan)) {
-		float SHININESS = pow(2, 4); // Should be configurable
 		vec3 viewDir = frg_tbnInverse * normalize(frameUbo.viewPos - frg_worldPos);
 		vec3 reflectDir = reflect(-lightDirTan, nrmTan);
 		r = dot(-viewDir, reflectDir);
-		r = pow(r, SHININESS);
+		r = max(0, r);
+		r = pow(r, modelUbo.shininess);
 		r = unnormalize(modelUbo.minSpecular, modelUbo.maxSpecular, r);
 		r = max(0, r);
 	}
 	return r;
 }
 
-float pointSpecular(vec3 lightPos, vec3 nrmTan, float intensity) {
-	vec3 dirTan = -normalize(frg_tbnInverse * (lightPos - frg_worldPos));
-	float dist = distance(lightPos, frg_worldPos);
-	return (intensity / dist) * raySpecular(dirTan, nrmTan);
+float pointSpecular(PointLightInfo pli, vec3 nrmTan, float intensity) {
+	return (intensity / pli.dirTan.w) * raySpecular(-pli.dirTan.xyz, nrmTan);
 }
 
 
 // Everything minus cel shading and normal maps
 void main_0() {
+	PointLightInfo pli = mkPointLightInfo(frameUbo.pointLight.xyz);
+
 	float reflection =
-		pointDiffusion(frameUbo.pointLight.xyz, frg_nrmTan, frameUbo.pointLight.w) +
+		pointDiffusion(pli, frg_nrmTan, frameUbo.pointLight.w) +
 		rayDiffusion(frg_lightDirTan, frg_nrmTan) +
-		pointSpecular(frameUbo.pointLight.xyz, frg_nrmTan, frameUbo.pointLight.w) +
+		pointSpecular(pli, frg_nrmTan, frameUbo.pointLight.w) +
 		raySpecular(frg_lightDirTan, frg_nrmTan);
 
 	out_col =
@@ -159,10 +170,11 @@ void main_0() {
 
 // Light diffusion
 void main_1() {
+	PointLightInfo pli = mkPointLightInfo(frameUbo.pointLight.xyz);
 	vec3 tex_nrmTan = get_normal_tanspace();
 
 	float diffusion =
-		pointDiffusion(frameUbo.pointLight.xyz, tex_nrmTan, frameUbo.pointLight.w) +
+		pointDiffusion(pli, tex_nrmTan, frameUbo.pointLight.w) +
 		rayDiffusion(frg_lightDirTan, tex_nrmTan);
 
 	out_col =
@@ -177,10 +189,11 @@ void main_1() {
 
 // Cel shading, diffuse lighting
 void main_2() {
+	PointLightInfo pli = mkPointLightInfo(frameUbo.pointLight.xyz);
 	vec3 tex_nrmTan = get_normal_tanspace();
 
 	float diffusion =
-		pointDiffusion(frameUbo.pointLight.xyz, tex_nrmTan, frameUbo.pointLight.w) +
+		pointDiffusion(pli, tex_nrmTan, frameUbo.pointLight.w) +
 		rayDiffusion(frg_lightDirTan, tex_nrmTan);
 
 	out_col =
@@ -195,10 +208,11 @@ void main_2() {
 
 // Specular light
 void main_3() {
+	PointLightInfo pli = mkPointLightInfo(frameUbo.pointLight.xyz);
 	vec3 tex_nrmTan = get_normal_tanspace();
 
 	float reflection =
-		pointSpecular(frameUbo.pointLight.xyz, tex_nrmTan, frameUbo.pointLight.w) +
+		pointSpecular(pli, tex_nrmTan, frameUbo.pointLight.w) +
 		raySpecular(frg_lightDirTan, tex_nrmTan);
 
 	out_col =
@@ -213,10 +227,11 @@ void main_3() {
 
 // Cel shading, specular light
 void main_4() {
+	PointLightInfo pli = mkPointLightInfo(frameUbo.pointLight.xyz);
 	vec3 tex_nrmTan = get_normal_tanspace();
 
 	float reflection =
-		pointSpecular(frameUbo.pointLight.xyz, tex_nrmTan, frameUbo.pointLight.w) +
+		pointSpecular(pli, tex_nrmTan, frameUbo.pointLight.w) +
 		raySpecular(frg_lightDirTan, tex_nrmTan);
 
 	out_col =
@@ -231,12 +246,13 @@ void main_4() {
 
 // Everything minus cel shading
 void main_5() {
+	PointLightInfo pli = mkPointLightInfo(frameUbo.pointLight.xyz);
 	vec3 tex_nrmTan = get_normal_tanspace();
 
 	float reflection =
-		pointDiffusion(frameUbo.pointLight.xyz, tex_nrmTan, frameUbo.pointLight.w) +
+		pointDiffusion(pli, tex_nrmTan, frameUbo.pointLight.w) +
 		rayDiffusion(frg_lightDirTan, tex_nrmTan) +
-		pointSpecular(frameUbo.pointLight.xyz, tex_nrmTan, frameUbo.pointLight.w) +
+		pointSpecular(pli, tex_nrmTan, frameUbo.pointLight.w) +
 		raySpecular(frg_lightDirTan, tex_nrmTan);
 
 	out_col = texture(tex_dfsSampler, frg_tex) * frg_col;
@@ -248,12 +264,13 @@ void main_5() {
 
 // Everything
 void main_6() {
+	PointLightInfo pli = mkPointLightInfo(frameUbo.pointLight.xyz);
 	vec3 tex_nrmTan = get_normal_tanspace();
 
 	float reflection =
-		pointDiffusion(frameUbo.pointLight.xyz, tex_nrmTan, frameUbo.pointLight.w) +
+		pointDiffusion(pli, tex_nrmTan, frameUbo.pointLight.w) +
 		rayDiffusion(frg_lightDirTan, tex_nrmTan) +
-		pointSpecular(frameUbo.pointLight.xyz, tex_nrmTan, frameUbo.pointLight.w) +
+		pointSpecular(pli, tex_nrmTan, frameUbo.pointLight.w) +
 		raySpecular(frg_lightDirTan, tex_nrmTan);
 
 	out_col = texture(tex_dfsSampler, frg_tex) * frg_col;

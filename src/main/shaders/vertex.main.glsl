@@ -40,6 +40,7 @@ layout(set = 1, binding = 0) uniform ModelUbo {
 	float maxDiffuse;
 	float minSpecular;
 	float maxSpecular;
+	float shininess;
 	float rnd;
 } modelUbo;
 
@@ -70,7 +71,6 @@ layout(location = 1) out vec3 frg_lightDirTan;
 layout(location = 2) out vec3 frg_nrmTan;
 layout(location = 3) out vec4 frg_col;
 layout(location = 4) out vec3 frg_worldPos;
-layout(location = 5) out mat3 frg_tbn;
 layout(location = 8) out mat3 frg_tbnInverse;
 
 
@@ -112,17 +112,15 @@ void main() {
 	mat3 modelViewMat3 = mat3(modelViewMat);
 	vec4 worldPos = in_modelMat * vec4(in_pos, 1.0);
 	vec3 worldNrm = inverse(transpose(mat3(in_modelMat))) * normalize(in_nrm);
-	vec4 viewPos = modelViewMat * vec4(in_pos, 1.0);
-	vec4 viewPosNormalized = normalize(viewPos);
 	vec3 worldTanU = mat3(in_modelMat) * normalize(in_tanu);
 	vec3 worldTanV = mat3(in_modelMat) * normalize(in_tanv);
-	mat3 tbnInverse = frg_tbnInverse = transpose(frg_tbn = mat3(worldTanU, worldTanV, worldNrm));
 
-	gl_Position = staticUbo.proj * viewPos;
+	gl_Position = staticUbo.proj * modelViewMat * vec4(in_pos, 1.0);
 
+	frg_tbnInverse = transpose(mat3(worldTanU, worldTanV, worldNrm));
 	frg_tex = in_tex;
-	frg_nrmTan = tbnInverse * worldNrm;
-	frg_lightDirTan = tbnInverse * normalize(frameUbo.lightDirection);
+	frg_nrmTan = frg_tbnInverse * worldNrm;
+	frg_lightDirTan = frg_tbnInverse * normalize(frameUbo.lightDirection);
 	frg_col = in_col;
 	frg_worldPos = worldPos.xyz;
 }

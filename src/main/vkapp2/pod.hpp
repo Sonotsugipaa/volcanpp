@@ -157,6 +157,7 @@ namespace vka2 {
 			SPIRV_ALIGNED(float)      maxDiffuse;
 			SPIRV_ALIGNED(float)      minSpecular;
 			SPIRV_ALIGNED(float)      maxSpecular;
+			SPIRV_ALIGNED(float)      shininess;
 			SPIRV_ALIGNED(float)      rnd; // Different for every model
 		};
 

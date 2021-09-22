@@ -719,15 +719,13 @@ namespace vka2 {
 
 	void RenderPass::waitIdle(uint64_t timeout) {
 		_rendering.skipNextFrame = true;
-		auto fenceVector = std::vector<vk::Fence>(_data.swpchnImages.size());
-		for(unsigned i=0; i < fenceVector.size(); ++i) {
-			fenceVector[i] = _data.swpchnImages[i].second.fenceImgAvailable; }
-		{
+		auto fenceVector = std::vector<vk::Fence>();
+		for(unsigned i=0; i < _data.swpchnImages.size(); ++i) {
 			vk::Result result = _swapchain->application->device().waitForFences(
-				fenceVector, true, timeout);
+				_data.swpchnImages[i].second.fenceImgAvailable, true, timeout);
 			if(result != vk::Result::eSuccess) {
 				throw std::runtime_error(formatVkErrorMsg(
-					"failed to wait for a pipeline to be free", vk::to_string(result)));
+					"failed to wait for a render pass to be idle", vk::to_string(result)));
 			}
 		}
 	}
