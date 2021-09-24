@@ -76,11 +76,13 @@ namespace vka2 {
 				qFamIdx))),
 			_fence_shared(dev.createFence({ }))
 	{
+		util::alloc_tracker.alloc("vk::Fence");
 		util::alloc_tracker.alloc("CommandPool");
 	}
 
 	void CommandPool::destroy() {
 		_dev->destroyFence(_fence_shared);
+		util::alloc_tracker.dealloc("vk::Fence");
 		_dev->destroyCommandPool(_pool);
 		util::alloc_tracker.dealloc("CommandPool");
 	}

@@ -59,6 +59,7 @@ namespace {
 		std::array<vk::Fence, 2> fences = {
 			app.device().createFence({ }),
 			app.device().createFence({ }) };
+		util::alloc_tracker.alloc("vk::Fence", 2);
 		size_t stagingBufSize = vtxSizeBytes + idxSizeBytes;
 		BufferAlloc stagingBuf = mk_staging_buffer(app, stagingBufSize);
 		void* mmapd = app.mapBuffer<void>(stagingBuf.alloc);
@@ -101,6 +102,7 @@ namespace {
 			}
 			app.device().destroyFence(fences[0]);
 			app.device().destroyFence(fences[1]);
+			util::alloc_tracker.dealloc("vk::Fence", 2);
 		}
 		app.unmapBuffer(stagingBuf.alloc);
 		vmaDestroyBuffer(alloc, stagingBuf.handle, stagingBuf.alloc);

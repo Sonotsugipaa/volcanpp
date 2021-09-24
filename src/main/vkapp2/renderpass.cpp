@@ -445,6 +445,7 @@ namespace {
 			} { // Create the image's synchronization objects
 				r.fenceStaticUboUpToDate = dev.createFence({ });
 				r.fenceImgAvailable = dev.createFence({ vk::FenceCreateFlagBits::eSignaled });
+				util::alloc_tracker.alloc("vk::Fence", 2);
 				util::alloc_tracker.alloc("RenderPass:ImageData:[sync_objects]");
 			} { // Allocate the command pool and buffer
 				r.cmdPool = dev.createCommandPool(vk::CommandPoolCreateInfo({ },
@@ -492,6 +493,7 @@ namespace {
 				dev.destroyFence(imgData.fenceImgAvailable);
 				dev.destroyFence(imgData.fenceStaticUboUpToDate);
 				util::alloc_tracker.dealloc("RenderPass:ImageData:[sync_objects]");
+				util::alloc_tracker.dealloc("vk::Fence", 2);
 			}
 			dev.destroyCommandPool(imgData.cmdPool);  util::alloc_tracker.dealloc("RenderPass:ImageData:cmdPool");
 			dev.destroyFramebuffer(imgData.framebuffer);  util::alloc_tracker.dealloc("RenderPass:ImageData:framebuffer");
