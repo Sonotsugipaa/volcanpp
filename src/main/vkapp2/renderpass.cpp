@@ -57,7 +57,10 @@ namespace {
 			vk::DescriptorSetLayoutBinding(Texture::samplerDescriptorBindings[0], // Color sampler
 				vk::DescriptorType::eCombinedImageSampler, 1,
 				vk::ShaderStageFlagBits::eFragment),
-			vk::DescriptorSetLayoutBinding(Texture::samplerDescriptorBindings[1], // Normal sampler
+			vk::DescriptorSetLayoutBinding(Texture::samplerDescriptorBindings[1], // Specular sampler
+				vk::DescriptorType::eCombinedImageSampler, 1,
+				vk::ShaderStageFlagBits::eFragment),
+			vk::DescriptorSetLayoutBinding(Texture::samplerDescriptorBindings[2], // Normal sampler
 				vk::DescriptorType::eCombinedImageSampler, 1,
 				vk::ShaderStageFlagBits::eFragment) };
 		r[ubo::Frame::set] = {
@@ -598,9 +601,11 @@ namespace vka2 {
 		auto dev = rpass._swapchain->application->device();
 		set_mdl_ubo_descriptor(dev, mdl, dSet);
 		set_mdl_sampler_descriptor(
-			dev, dSet, Texture::samplerDescriptorBindings[0], mdl.material().colorTexture);
+			dev, dSet, Texture::samplerDescriptorBindings[0], mdl.material().diffuseTexture);
 		set_mdl_sampler_descriptor(
-			dev, dSet, Texture::samplerDescriptorBindings[1], mdl.material().normalTexture);
+			dev, dSet, Texture::samplerDescriptorBindings[1], mdl.material().specularTexture);
+		set_mdl_sampler_descriptor(
+			dev, dSet, Texture::samplerDescriptorBindings[2], mdl.material().normalTexture);
 	}
 
 

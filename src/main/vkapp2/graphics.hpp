@@ -101,11 +101,11 @@ namespace vka2 {
 
 	public:
 		enum class Usage {
-			eColor, eNormal, eSpecular
+			eDiffuse, eSpecular, eNormal
 		};
 
 		static constexpr unsigned samplerDescriptorSet = ubo::Model::set;
-		static constexpr std::array<unsigned, 2> samplerDescriptorBindings = { 1, 2 }; // Diffuse, Normal (+ Reflect in the near future)
+		static constexpr std::array<unsigned, 3> samplerDescriptorBindings = { 1, 2, 3 }; // Diffuse, Specular, Normal
 
 		struct Data {
 			unsigned width, height, channels;
@@ -146,7 +146,8 @@ namespace vka2 {
 	struct Material {
 		using ShPtr = std::shared_ptr<Material>;
 
-		Texture colorTexture;
+		Texture diffuseTexture;
+		Texture specularTexture;
 		Texture normalTexture;
 		float minDiffuse, maxDiffuse;
 		float minSpecular, maxSpecular;

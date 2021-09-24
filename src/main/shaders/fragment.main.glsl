@@ -54,7 +54,8 @@ layout(set = 2, binding = 0) uniform FrameUbo {
 } frameUbo;
 
 layout(set = 1, binding = 1) uniform sampler2D tex_dfsSampler;
-layout(set = 1, binding = 2) uniform sampler2D tex_nrmSampler;
+layout(set = 1, binding = 2) uniform sampler2D tex_spcSampler;
+layout(set = 1, binding = 3) uniform sampler2D tex_nrmSampler;
 
 
 
@@ -150,19 +151,31 @@ float pointSpecular(PointLightInfo pli, vec3 nrmTan, float intensity) {
 
 // Everything minus cel shading and normal maps
 void main_0() {
-	PointLightInfo pli = mkPointLightInfo(frameUbo.pointLight.xyz);
+	// Calculate diffuse and specular multipliers, using the fragment normal
+	float diffuse, specular;
+	{
+		PointLightInfo pli = mkPointLightInfo(frameUbo.pointLight.xyz);
+		diffuse =
+			pointDiffusion(pli, frg_nrmTan, frameUbo.pointLight.w) +
+			rayDiffusion(frg_lightDirTan, frg_nrmTan);
+		specular =
+			pointSpecular(pli, frg_nrmTan, frameUbo.pointLight.w) +
+			raySpecular(frg_lightDirTan, frg_nrmTan);
+	}
 
-	float reflection =
-		pointDiffusion(pli, frg_nrmTan, frameUbo.pointLight.w) +
-		rayDiffusion(frg_lightDirTan, frg_nrmTan) +
-		pointSpecular(pli, frg_nrmTan, frameUbo.pointLight.w) +
-		raySpecular(frg_lightDirTan, frg_nrmTan);
+	// Make sure that diffuse + specular <= 1
+	{
+		float div = max(1, diffuse + specular);
+		diffuse /= div;
+		specular /= div;
+	}
 
-	out_col =
-		texture(tex_dfsSampler, frg_tex)
-		* frg_col;
-
-	out_col.xyz *= reflection;
+	// Compute the color output
+	out_col.xyz =
+		(texture(tex_dfsSampler, frg_tex).xyz * diffuse) +
+		(texture(tex_spcSampler, frg_tex).xyz * specular);
+	out_col.w = 1;
+	out_col *= frg_col;
 
 	if(out_col.w < 0.01)  discard;
 }
@@ -170,18 +183,30 @@ void main_0() {
 
 // Light diffusion
 void main_1() {
-	PointLightInfo pli = mkPointLightInfo(frameUbo.pointLight.xyz);
-	vec3 tex_nrmTan = get_normal_tanspace();
+	// Calculate diffuse multiplier
+	float diffuse, specular;
+	{
+		PointLightInfo pli = mkPointLightInfo(frameUbo.pointLight.xyz);
+		vec3 tex_nrmTan = get_normal_tanspace();
+		diffuse =
+			pointDiffusion(pli, tex_nrmTan, frameUbo.pointLight.w) +
+			rayDiffusion(frg_lightDirTan, tex_nrmTan);
+		specular = 0;
+	}
 
-	float diffusion =
-		pointDiffusion(pli, tex_nrmTan, frameUbo.pointLight.w) +
-		rayDiffusion(frg_lightDirTan, tex_nrmTan);
+	// Make sure that diffuse + specular <= 1
+	{
+		float div = max(1, diffuse + specular);
+		diffuse /= div;
+		specular /= div;
+	}
 
-	out_col =
-		texture(tex_dfsSampler, frg_tex)
-		* frg_col;
-
-	out_col.xyz *= diffusion;
+	// Compute the color output
+	out_col.xyz =
+		(texture(tex_dfsSampler, frg_tex).xyz * diffuse) +
+		(texture(tex_spcSampler, frg_tex).xyz * specular);
+	out_col.w = 1;
+	out_col *= frg_col;
 
 	if(out_col.w < 0.01)  discard;
 }
@@ -189,18 +214,34 @@ void main_1() {
 
 // Cel shading, diffuse lighting
 void main_2() {
-	PointLightInfo pli = mkPointLightInfo(frameUbo.pointLight.xyz);
-	vec3 tex_nrmTan = get_normal_tanspace();
+	// Calculate diffuse multiplier
+	float diffuse, specular;
+	{
+		PointLightInfo pli = mkPointLightInfo(frameUbo.pointLight.xyz);
+		vec3 tex_nrmTan = get_normal_tanspace();
+		diffuse =
+			pointDiffusion(pli, tex_nrmTan, frameUbo.pointLight.w) +
+			rayDiffusion(frg_lightDirTan, tex_nrmTan);
+		specular = 0;
+	}
 
-	float diffusion =
-		pointDiffusion(pli, tex_nrmTan, frameUbo.pointLight.w) +
-		rayDiffusion(frg_lightDirTan, tex_nrmTan);
+	// Make sure that diffuse + specular <= 1
+	{
+		float div = max(1, diffuse + specular);
+		diffuse /= div;
+		specular /= div;
+	}
 
-	out_col =
-		texture(tex_dfsSampler, frg_tex)
-		* frg_col;
+	// Apply cel-shading
+	diffuse = shave(diffuse, 1.0 / float(staticUbo.lightLevels), 0.5);
+	specular = shave(specular, 1.0 / float(staticUbo.lightLevels), 0.5);
 
-	out_col.xyz *= shave(diffusion, 1.0 / float(staticUbo.lightLevels), 0.5);
+	// Compute the color output
+	out_col.xyz =
+		(texture(tex_dfsSampler, frg_tex).xyz * diffuse) +
+		(texture(tex_spcSampler, frg_tex).xyz * specular);
+	out_col.w = 1;
+	out_col *= frg_col;
 
 	if(out_col.w < 0.01)  discard;
 }
@@ -208,18 +249,30 @@ void main_2() {
 
 // Specular light
 void main_3() {
-	PointLightInfo pli = mkPointLightInfo(frameUbo.pointLight.xyz);
-	vec3 tex_nrmTan = get_normal_tanspace();
+	// Calculate specular multiplier
+	float diffuse, specular;
+	{
+		PointLightInfo pli = mkPointLightInfo(frameUbo.pointLight.xyz);
+		vec3 tex_nrmTan = get_normal_tanspace();
+		diffuse = 0;
+		specular =
+			pointSpecular(pli, tex_nrmTan, frameUbo.pointLight.w) +
+			raySpecular(frg_lightDirTan, tex_nrmTan);
+	}
 
-	float reflection =
-		pointSpecular(pli, tex_nrmTan, frameUbo.pointLight.w) +
-		raySpecular(frg_lightDirTan, tex_nrmTan);
+	// Make sure that diffuse + specular <= 1
+	{
+		float div = max(1, diffuse + specular);
+		diffuse /= div;
+		specular /= div;
+	}
 
-	out_col =
-		texture(tex_dfsSampler, frg_tex)
-		* frg_col;
-
-	out_col.xyz *= reflection;
+	// Compute the color output
+	out_col.xyz =
+		(texture(tex_dfsSampler, frg_tex).xyz * diffuse) +
+		(texture(tex_spcSampler, frg_tex).xyz * specular);
+	out_col.w = 1;
+	out_col *= frg_col;
 
 	if(out_col.w < 0.01)  discard;
 }
@@ -227,18 +280,34 @@ void main_3() {
 
 // Cel shading, specular light
 void main_4() {
-	PointLightInfo pli = mkPointLightInfo(frameUbo.pointLight.xyz);
-	vec3 tex_nrmTan = get_normal_tanspace();
+	// Calculate specular multiplier
+	float diffuse, specular;
+	{
+		PointLightInfo pli = mkPointLightInfo(frameUbo.pointLight.xyz);
+		vec3 tex_nrmTan = get_normal_tanspace();
+		diffuse = 0;
+		specular =
+			pointSpecular(pli, tex_nrmTan, frameUbo.pointLight.w) +
+			raySpecular(frg_lightDirTan, tex_nrmTan);
+	}
 
-	float reflection =
-		pointSpecular(pli, tex_nrmTan, frameUbo.pointLight.w) +
-		raySpecular(frg_lightDirTan, tex_nrmTan);
+	// Make sure that diffuse + specular <= 1
+	{
+		float div = max(1, diffuse + specular);
+		diffuse /= div;
+		specular /= div;
+	}
 
-	out_col =
-		texture(tex_dfsSampler, frg_tex)
-		* frg_col;
+	// Apply cel-shading
+	diffuse = shave(diffuse, 1.0 / float(staticUbo.lightLevels), 0.5);
+	specular = shave(specular, 1.0 / float(staticUbo.lightLevels), 0.5);
 
-	out_col.xyz *= shave(reflection, 1.0 / float(staticUbo.lightLevels), 0.5);
+	// Compute the color output
+	out_col.xyz =
+		(texture(tex_dfsSampler, frg_tex).xyz * diffuse) +
+		(texture(tex_spcSampler, frg_tex).xyz * specular);
+	out_col.w = 1;
+	out_col *= frg_col;
 
 	if(out_col.w < 0.01)  discard;
 }
@@ -246,17 +315,32 @@ void main_4() {
 
 // Everything minus cel shading
 void main_5() {
-	PointLightInfo pli = mkPointLightInfo(frameUbo.pointLight.xyz);
-	vec3 tex_nrmTan = get_normal_tanspace();
+	// Calculate diffuse and specular multipliers
+	float diffuse, specular;
+	{
+		PointLightInfo pli = mkPointLightInfo(frameUbo.pointLight.xyz);
+		vec3 tex_nrmTan = get_normal_tanspace();
+		diffuse =
+			pointDiffusion(pli, tex_nrmTan, frameUbo.pointLight.w) +
+			rayDiffusion(frg_lightDirTan, tex_nrmTan);
+		specular =
+			pointSpecular(pli, tex_nrmTan, frameUbo.pointLight.w) +
+			raySpecular(frg_lightDirTan, tex_nrmTan);
+	}
 
-	float reflection =
-		pointDiffusion(pli, tex_nrmTan, frameUbo.pointLight.w) +
-		rayDiffusion(frg_lightDirTan, tex_nrmTan) +
-		pointSpecular(pli, tex_nrmTan, frameUbo.pointLight.w) +
-		raySpecular(frg_lightDirTan, tex_nrmTan);
+	// Make sure that diffuse + specular <= 1
+	{
+		float div = max(1, diffuse + specular);
+		diffuse /= div;
+		specular /= div;
+	}
 
-	out_col = texture(tex_dfsSampler, frg_tex) * frg_col;
-	out_col.xyz *= reflection;
+	// Compute the color output
+	out_col.xyz =
+		(texture(tex_dfsSampler, frg_tex).xyz * diffuse) +
+		(texture(tex_spcSampler, frg_tex).xyz * specular);
+	out_col.w = 1;
+	out_col *= frg_col;
 
 	if(out_col.w < 0.01)  discard;
 }
@@ -264,17 +348,36 @@ void main_5() {
 
 // Everything
 void main_6() {
-	PointLightInfo pli = mkPointLightInfo(frameUbo.pointLight.xyz);
-	vec3 tex_nrmTan = get_normal_tanspace();
+	// Calculate diffuse and specular multipliers
+	float diffuse, specular;
+	{
+		PointLightInfo pli = mkPointLightInfo(frameUbo.pointLight.xyz);
+		vec3 tex_nrmTan = get_normal_tanspace();
+		diffuse =
+			pointDiffusion(pli, tex_nrmTan, frameUbo.pointLight.w) +
+			rayDiffusion(frg_lightDirTan, tex_nrmTan);
+		specular =
+			pointSpecular(pli, tex_nrmTan, frameUbo.pointLight.w) +
+			raySpecular(frg_lightDirTan, tex_nrmTan);
+	}
 
-	float reflection =
-		pointDiffusion(pli, tex_nrmTan, frameUbo.pointLight.w) +
-		rayDiffusion(frg_lightDirTan, tex_nrmTan) +
-		pointSpecular(pli, tex_nrmTan, frameUbo.pointLight.w) +
-		raySpecular(frg_lightDirTan, tex_nrmTan);
+	// Make sure that diffuse + specular <= 1
+	{
+		float div = max(1, diffuse + specular);
+		diffuse /= div;
+		specular /= div;
+	}
 
-	out_col = texture(tex_dfsSampler, frg_tex) * frg_col;
-	out_col.xyz *= shave(reflection, 1.0 / float(staticUbo.lightLevels), 0.5);
+	// Apply cel-shading
+	diffuse = shave(diffuse, 1.0 / float(staticUbo.lightLevels), 0.5);
+	specular = shave(specular, 1.0 / float(staticUbo.lightLevels), 0.5);
+
+	// Compute the color output
+	out_col.xyz =
+		(texture(tex_dfsSampler, frg_tex).xyz * diffuse) +
+		(texture(tex_spcSampler, frg_tex).xyz * specular);
+	out_col.w = 1;
+	out_col *= frg_col;
 
 	if(out_col.w < 0.01)  discard;
 }

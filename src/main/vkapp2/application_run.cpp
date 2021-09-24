@@ -693,16 +693,18 @@ namespace {
 						util::logDebug() << "Loading texture \"" << value << '"' << util::endl;
 					};
 					switch(usage) {
-						case Texture::Usage::eColor:
+						case Texture::Usage::eDiffuse:
 							setName(txtrName, assetPath + "/"s + src.mdlName + ".dfs.png");
 							return rd_texture(app, txtrName,
-								worldOpts.colorNearestFilter, MISSING_TEXTURE_COLOR);
+								worldOpts.diffuseNearestFilter, MISSING_TEXTURE_COLOR);
+						case Texture::Usage::eSpecular:
+							setName(txtrName, assetPath + "/"s + src.mdlName + ".spc.png");
+							return rd_texture(app, txtrName,
+								worldOpts.specularNearestFilter, MISSING_TEXTURE_COLOR);
 						case Texture::Usage::eNormal:
 							setName(txtrName, assetPath + "/"s + src.mdlName + ".nrm.png");
 							return rd_texture(app, txtrName,
 								worldOpts.normalNearestFilter, glm::vec4(0.5f, 0.5f, 0.5f, 1.0f));
-						case Texture::Usage::eSpecular:
-							throw std::runtime_error("Unimplemented; " __FILE__ ":" + std::to_string(__LINE__));
 						default: throw std::logic_error("invalid value of vka2::Texture::Usage");
 					}
 				};
