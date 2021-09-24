@@ -114,6 +114,15 @@ vec3 get_normal_tanspace() {
 }
 
 
+vec3 clampColor(vec3 colRgb) {
+	float adjust = max(max(colRgb.r, colRgb.g), colRgb.b);
+	adjust = max(1, adjust) - 1;
+	colRgb += adjust;
+	colRgb = min(colRgb, 1);
+	return colRgb;
+}
+
+
 float rayDiffusion(vec3 lightDirTan, vec3 nrmTan) {
 	float r = modelUbo.minDiffuse;
 	if(-0.5 < dot(-lightDirTan, frg_nrmTan)) {
@@ -163,19 +172,15 @@ void main_0() {
 			raySpecular(frg_lightDirTan, frg_nrmTan);
 	}
 
-	// Make sure that diffuse + specular <= 1
-	{
-		float div = max(1, diffuse + specular);
-		diffuse /= div;
-		specular /= div;
-	}
-
 	// Compute the color output
-	out_col.xyz =
+	out_col.rgb =
 		(texture(tex_dfsSampler, frg_tex).xyz * diffuse) +
 		(texture(tex_spcSampler, frg_tex).xyz * specular);
-	out_col.w = 1;
+	out_col.a = 1;
 	out_col *= frg_col;
+
+	//  Mitigate artifacts if any color component is >1
+	out_col.rgb = clampColor(out_col.rgb);
 
 	if(out_col.w < 0.01)  discard;
 }
@@ -194,19 +199,15 @@ void main_1() {
 		specular = 0;
 	}
 
-	// Make sure that diffuse + specular <= 1
-	{
-		float div = max(1, diffuse + specular);
-		diffuse /= div;
-		specular /= div;
-	}
-
 	// Compute the color output
-	out_col.xyz =
+	out_col.rgb =
 		(texture(tex_dfsSampler, frg_tex).xyz * diffuse) +
 		(texture(tex_spcSampler, frg_tex).xyz * specular);
-	out_col.w = 1;
+	out_col.a = 1;
 	out_col *= frg_col;
+
+	//  Mitigate artifacts if any color component is >1
+	out_col.rgb = clampColor(out_col.rgb);
 
 	if(out_col.w < 0.01)  discard;
 }
@@ -225,23 +226,19 @@ void main_2() {
 		specular = 0;
 	}
 
-	// Make sure that diffuse + specular <= 1
-	{
-		float div = max(1, diffuse + specular);
-		diffuse /= div;
-		specular /= div;
-	}
-
 	// Apply cel-shading
 	diffuse = shave(diffuse, 1.0 / float(staticUbo.lightLevels), 0.5);
 	specular = shave(specular, 1.0 / float(staticUbo.lightLevels), 0.5);
 
 	// Compute the color output
-	out_col.xyz =
+	out_col.rgb =
 		(texture(tex_dfsSampler, frg_tex).xyz * diffuse) +
 		(texture(tex_spcSampler, frg_tex).xyz * specular);
-	out_col.w = 1;
+	out_col.a = 1;
 	out_col *= frg_col;
+
+	//  Mitigate artifacts if any color component is >1
+	out_col.rgb = clampColor(out_col.rgb);
 
 	if(out_col.w < 0.01)  discard;
 }
@@ -260,19 +257,15 @@ void main_3() {
 			raySpecular(frg_lightDirTan, tex_nrmTan);
 	}
 
-	// Make sure that diffuse + specular <= 1
-	{
-		float div = max(1, diffuse + specular);
-		diffuse /= div;
-		specular /= div;
-	}
-
 	// Compute the color output
-	out_col.xyz =
+	out_col.rgb =
 		(texture(tex_dfsSampler, frg_tex).xyz * diffuse) +
 		(texture(tex_spcSampler, frg_tex).xyz * specular);
-	out_col.w = 1;
+	out_col.a = 1;
 	out_col *= frg_col;
+
+	//  Mitigate artifacts if any color component is >1
+	out_col.rgb = clampColor(out_col.rgb);
 
 	if(out_col.w < 0.01)  discard;
 }
@@ -291,23 +284,19 @@ void main_4() {
 			raySpecular(frg_lightDirTan, tex_nrmTan);
 	}
 
-	// Make sure that diffuse + specular <= 1
-	{
-		float div = max(1, diffuse + specular);
-		diffuse /= div;
-		specular /= div;
-	}
-
 	// Apply cel-shading
 	diffuse = shave(diffuse, 1.0 / float(staticUbo.lightLevels), 0.5);
 	specular = shave(specular, 1.0 / float(staticUbo.lightLevels), 0.5);
 
 	// Compute the color output
-	out_col.xyz =
+	out_col.rgb =
 		(texture(tex_dfsSampler, frg_tex).xyz * diffuse) +
 		(texture(tex_spcSampler, frg_tex).xyz * specular);
-	out_col.w = 1;
+	out_col.a = 1;
 	out_col *= frg_col;
+
+	//  Mitigate artifacts if any color component is >1
+	out_col.rgb = clampColor(out_col.rgb);
 
 	if(out_col.w < 0.01)  discard;
 }
@@ -328,19 +317,15 @@ void main_5() {
 			raySpecular(frg_lightDirTan, tex_nrmTan);
 	}
 
-	// Make sure that diffuse + specular <= 1
-	{
-		float div = max(1, diffuse + specular);
-		diffuse /= div;
-		specular /= div;
-	}
-
 	// Compute the color output
-	out_col.xyz =
+	out_col.rgb =
 		(texture(tex_dfsSampler, frg_tex).xyz * diffuse) +
 		(texture(tex_spcSampler, frg_tex).xyz * specular);
-	out_col.w = 1;
+	out_col.a = 1;
 	out_col *= frg_col;
+
+	//  Mitigate artifacts if any color component is >1
+	out_col.rgb = clampColor(out_col.rgb);
 
 	if(out_col.w < 0.01)  discard;
 }
@@ -361,23 +346,19 @@ void main_6() {
 			raySpecular(frg_lightDirTan, tex_nrmTan);
 	}
 
-	// Make sure that diffuse + specular <= 1
-	{
-		float div = max(1, diffuse + specular);
-		diffuse /= div;
-		specular /= div;
-	}
-
 	// Apply cel-shading
 	diffuse = shave(diffuse, 1.0 / float(staticUbo.lightLevels), 0.5);
 	specular = shave(specular, 1.0 / float(staticUbo.lightLevels), 0.5);
 
 	// Compute the color output
-	out_col.xyz =
+	out_col.rgb =
 		(texture(tex_dfsSampler, frg_tex).xyz * diffuse) +
 		(texture(tex_spcSampler, frg_tex).xyz * specular);
-	out_col.w = 1;
+	out_col.a = 1;
 	out_col *= frg_col;
+
+	//  Mitigate artifacts if any color component is >1
+	out_col.rgb = clampColor(out_col.rgb);
 
 	if(out_col.w < 0.01)  discard;
 }
