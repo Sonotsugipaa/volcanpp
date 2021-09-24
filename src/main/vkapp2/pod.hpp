@@ -157,6 +157,7 @@ namespace vka2 {
 			SPIRV_ALIGNED(float)      maxDiffuse;
 			SPIRV_ALIGNED(float)      minSpecular;
 			SPIRV_ALIGNED(float)      maxSpecular;
+			SPIRV_ALIGNED(float)      shininess;
 			SPIRV_ALIGNED(float)      rnd; // Different for every model
 		};
 
@@ -167,6 +168,8 @@ namespace vka2 {
 			static constexpr unsigned set = 2;
 			static constexpr unsigned binding = 0;
 			SPIRV_ALIGNED(glm::mat4)  viewTransf;
+			SPIRV_ALIGNED(glm::vec3)  viewPos; // Should be consistent with the matrix transform for proper specular lighting
+			SPIRV_ALIGNED(glm::vec4)  pointLight; // Position XYZ, intensity
 			SPIRV_ALIGNED(glm::vec3)  lightDirection;
 			SPIRV_ALIGNED(float)      rnd; // Different for every frame
 			SPIRV_ALIGNED(uint32_t)   shaderSelector;

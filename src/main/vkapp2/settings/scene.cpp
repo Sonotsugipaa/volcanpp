@@ -73,11 +73,19 @@ namespace vka2 {
 				GET_VALUE(maxDiffuse,  float)
 				GET_VALUE(minSpecular, float)
 				GET_VALUE(maxSpecular, float)
+				GET_VALUE(shininess,   float)
 				GET_VALUE(mergeVertices, bool)
 				r.models.emplace_back(std::move(mdl));
 			}
 			#undef GET_VALUE
 			#undef GET_ARRAY
+		} {
+			auto& pointLightElem = cfg.getRoot()["pointLight"];
+			r.pointLight = { 0.0f, 0.0f, 0.0f, 1.0f };
+			std::copy(
+				pointLightElem.begin(),
+				pointLightElem.begin() + std::min<int>(r.pointLight.size(), pointLightElem.end() - pointLightElem.begin()),
+				r.pointLight.begin());
 		}
 		return r;
 	}

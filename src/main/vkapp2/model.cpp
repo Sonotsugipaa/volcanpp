@@ -59,6 +59,7 @@ namespace {
 		std::array<vk::Fence, 2> fences = {
 			app.device().createFence({ }),
 			app.device().createFence({ }) };
+		util::alloc_tracker.alloc("vk::Fence", 2);
 		size_t stagingBufSize = vtxSizeBytes + idxSizeBytes;
 		BufferAlloc stagingBuf = mk_staging_buffer(app, stagingBufSize);
 		void* mmapd = app.mapBuffer<void>(stagingBuf.alloc);
@@ -101,6 +102,7 @@ namespace {
 			}
 			app.device().destroyFence(fences[0]);
 			app.device().destroyFence(fences[1]);
+			util::alloc_tracker.dealloc("vk::Fence", 2);
 		}
 		app.unmapBuffer(stagingBuf.alloc);
 		vmaDestroyBuffer(alloc, stagingBuf.handle, stagingBuf.alloc);
@@ -112,7 +114,8 @@ namespace {
 			Application& app, std::function<Texture (Texture::Usage)> loader
 	) {
 		Material r;
-		r.colorTexture = loader(Texture::Usage::eColor);
+		r.diffuseTexture = loader(Texture::Usage::eDiffuse);
+		r.specularTexture = loader(Texture::Usage::eSpecular);
 		r.normalTexture = loader(Texture::Usage::eNormal);
 		r.minDiffuse = 0.0f;
 		r.maxDiffuse = 1.0f;
@@ -389,12 +392,15 @@ namespace vka2 {
 			_app->device().updateDescriptorSets(wdSets, { });
 		} { // Update the texture sampler descriptors
 			vk::DescriptorImageInfo diDfsInfo;
+			vk::DescriptorImageInfo diSpcInfo;
 			vk::DescriptorImageInfo diNrmInfo;
 			auto wdSets = std::vector<vk::WriteDescriptorSet>(r.size());
-			diDfsInfo.imageLayout = diNrmInfo.imageLayout =
+			diDfsInfo.imageLayout = diSpcInfo.imageLayout = diNrmInfo.imageLayout =
 				vk::ImageLayout::eShaderReadOnlyOptimal;
-			diDfsInfo.imageView = _mat->colorTexture.imgView();
-			diDfsInfo.sampler = _mat->colorTexture.sampler();
+			diDfsInfo.imageView = _mat->diffuseTexture.imgView();
+			diDfsInfo.sampler = _mat->diffuseTexture.sampler();
+			diSpcInfo.imageView = _mat->specularTexture.imgView();
+			diSpcInfo.sampler = _mat->specularTexture.sampler();
 			diNrmInfo.imageView = _mat->normalTexture.imgView();
 			diNrmInfo.sampler = _mat->normalTexture.sampler();
 			{ // Diffuse texture
@@ -406,10 +412,17 @@ namespace vka2 {
 					wdSet.dstSet = r[i++];
 				}
 				_app->device().updateDescriptorSets(wdSets, { });
+			} { // Specular texture
+				for(unsigned i=0; auto& wdSet : wdSets) {
+					wdSet.setImageInfo(diSpcInfo);
+					wdSet.dstBinding = Texture::samplerDescriptorBindings[1];
+					wdSet.dstSet = r[i++];
+				}
+				_app->device().updateDescriptorSets(wdSets, { });
 			} { // Normal texture
 				for(unsigned i=0; auto& wdSet : wdSets) {
 					wdSet.setImageInfo(diNrmInfo);
-					wdSet.dstBinding = Texture::samplerDescriptorBindings[1];
+					wdSet.dstBinding = Texture::samplerDescriptorBindings[2];
 					wdSet.dstSet = r[i++];
 				}
 				_app->device().updateDescriptorSets(wdSets, { });

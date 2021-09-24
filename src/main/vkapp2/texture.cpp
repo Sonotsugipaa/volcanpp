@@ -29,6 +29,8 @@
 
 #include <filesystem>
 
+#include "vkapp2/draw.hpp"
+
 using namespace vka2;
 
 using util::enum_str;
@@ -68,7 +70,7 @@ namespace {
 		}
 		r.size = r.width * r.height * r.channels;
 		r.data = pixels;
-		r.dataFormat = vk::Format::eR8G8B8A8Srgb;
+		r.dataFormat = vk::Format::eR8G8B8A8Unorm;
 		r.mipLevels = compute_mip_levels(r.width, r.height);
 		return r;
 	}
@@ -238,6 +240,7 @@ namespace {
 		scInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
 		scInfo.minLod = minLod;
 		scInfo.maxLod = maxLod;
+		scInfo.mipLodBias = LOD_BIAS;
 		scInfo.minFilter = vk::Filter::eLinear;
 		scInfo.magFilter = linearFilter? vk::Filter::eLinear : vk::Filter::eNearest;
 		scInfo.addressModeU = scInfo.addressModeV = scInfo.addressModeW =

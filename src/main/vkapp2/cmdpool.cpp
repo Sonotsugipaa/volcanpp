@@ -76,11 +76,13 @@ namespace vka2 {
 				qFamIdx))),
 			_fence_shared(dev.createFence({ }))
 	{
+		util::alloc_tracker.alloc("vk::Fence");
 		util::alloc_tracker.alloc("CommandPool");
 	}
 
 	void CommandPool::destroy() {
 		_dev->destroyFence(_fence_shared);
+		util::alloc_tracker.dealloc("vk::Fence");
 		_dev->destroyCommandPool(_pool);
 		util::alloc_tracker.dealloc("CommandPool");
 	}
@@ -131,7 +133,6 @@ namespace vka2 {
 			std::function<void (vk::CommandBuffer)> fn
 	) {
 		vk::CommandBuffer cmdBuffer;
-		assert(_dev->getFenceStatus(_fence_shared) == vk::Result::eNotReady);
 		{
 			cmdBuffer = alloc_cmd_buffer(
 			_dev, _pool, vk::CommandBufferLevel::ePrimary);

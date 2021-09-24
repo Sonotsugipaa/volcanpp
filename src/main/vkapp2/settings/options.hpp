@@ -56,8 +56,10 @@ namespace vka2 {
 			std::array<float, 3> lightDirection = { 1.0f, -1.0f, 1.0f };
 			// Where various assets are stored.
 			std::string assetPath = "assets";
-			// Use the nearest neighbor filter for color textures.
-			bool colorNearestFilter:1 = true;
+			// Use the nearest neighbor filter for diffuse textures.
+			bool diffuseNearestFilter:1 = true;
+			// Use the nearest neighbor filter for specular textures.
+			bool specularNearestFilter:1 = true;
 			// Use the nearest neighbor filter for normal textures (a.k.a. normal maps).
 			bool normalNearestFilter:1 = true;
 		} worldParams;

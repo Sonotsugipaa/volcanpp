@@ -40,11 +40,14 @@ layout(set = 1, binding = 0) uniform ModelUbo {
 	float maxDiffuse;
 	float minSpecular;
 	float maxSpecular;
+	float shininess;
 	float rnd;
 } modelUbo;
 
 layout(set = 2, binding = 0) uniform FrameUbo {
 	mat4 view;
+	vec3 viewPos;
+	vec4 pointLight;
 	vec3 lightDirection;
 	float rnd;
 	uint shaderSelector;
@@ -64,10 +67,11 @@ layout(location = 10) in vec4 in_col;
 layout(location = 11) in float in_rnd;
 
 layout(location = 0) out vec2 frg_tex;
-layout(location = 1) out vec3 frg_eyedirTan;
-layout(location = 2) out vec3 frg_lightdirTan;
-layout(location = 3) out vec3 frg_nrmTan;
-layout(location = 4) out vec4 frg_col;
+layout(location = 1) out vec3 frg_lightDirTan;
+layout(location = 2) out vec3 frg_nrmTan;
+layout(location = 3) out vec4 frg_col;
+layout(location = 4) out vec3 frg_worldPos;
+layout(location = 8) out mat3 frg_tbnInverse;
 
 
 
@@ -108,31 +112,15 @@ void main() {
 	mat3 modelViewMat3 = mat3(modelViewMat);
 	vec4 worldPos = in_modelMat * vec4(in_pos, 1.0);
 	vec3 worldNrm = inverse(transpose(mat3(in_modelMat))) * normalize(in_nrm);
-	vec4 viewPos = modelViewMat * vec4(in_pos, 1.0);
-	vec3 viewTanU = modelViewMat3 * normalize(in_tanu);
-	vec3 viewTanV = modelViewMat3 * normalize(in_tanv);
-	vec3 viewNrm = inverse(transpose(modelViewMat3)) * normalize(in_nrm);
-	mat3 tbnInverse = transpose(mat3(viewTanU, viewTanV, viewNrm));
+	vec3 worldTanU = mat3(in_modelMat) * normalize(in_tanu);
+	vec3 worldTanV = mat3(in_modelMat) * normalize(in_tanv);
 
-	gl_Position = staticUbo.proj * viewPos;
+	gl_Position = staticUbo.proj * modelViewMat * vec4(in_pos, 1.0);
 
+	frg_tbnInverse = transpose(mat3(worldTanU, worldTanV, worldNrm));
 	frg_tex = in_tex;
-	frg_nrmTan = tbnInverse * viewNrm;
-	frg_lightdirTan = normalize(tbnInverse * mat3(frameUbo.view) * frameUbo.lightDirection);
+	frg_nrmTan = frg_tbnInverse * worldNrm;
+	frg_lightDirTan = frg_tbnInverse * normalize(frameUbo.lightDirection);
 	frg_col = in_col;
-
-	switch(frameUbo.shaderSelector) {
-		case 1:
-		case 2: {
-			// NOP: diffuse reflection doesn't need the eye direction
-		} break;
-		case 0:
-		case 3:
-		case 4:
-		case 5:
-		case 6:
-		default: {
-			frg_eyedirTan = normalize(tbnInverse * normalize(viewPos.xyz));
-		} break;
-	}
+	frg_worldPos = worldPos.xyz;
 }
