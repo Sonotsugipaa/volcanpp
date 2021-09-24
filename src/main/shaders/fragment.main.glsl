@@ -125,12 +125,10 @@ vec3 clampColor(vec3 colRgb) {
 
 float rayDiffusion(vec3 lightDirTan, vec3 nrmTan) {
 	float r = modelUbo.minDiffuse;
-	if(-0.5 < dot(-lightDirTan, frg_nrmTan)) {
-		r = dot(-lightDirTan, nrmTan);
-		r = max(0, r);
-		r = unnormalize(modelUbo.minDiffuse, modelUbo.maxDiffuse, r);
-		r = max(0, r);
-	}
+	r = dot(-lightDirTan, nrmTan);
+	r = max(0, r);
+	r = unnormalize(modelUbo.minDiffuse, modelUbo.maxDiffuse, r);
+	r = max(0, r);
 	return r;
 }
 
@@ -141,15 +139,13 @@ float pointDiffusion(PointLightInfo pli, vec3 nrmTan, float intensity) {
 
 float raySpecular(vec3 lightDirTan, vec3 nrmTan) {
 	float r = modelUbo.minSpecular;
-	if(-0.5 < dot(-lightDirTan, frg_nrmTan)) {
-		vec3 viewDir = frg_tbnInverse * normalize(frameUbo.viewPos - frg_worldPos);
-		vec3 reflectDir = reflect(-lightDirTan, nrmTan);
-		r = dot(-viewDir, reflectDir);
-		r = max(0, r);
-		r = pow(r, modelUbo.shininess);
-		r = unnormalize(modelUbo.minSpecular, modelUbo.maxSpecular, r);
-		r = max(0, r);
-	}
+	vec3 viewDir = frg_tbnInverse * normalize(frameUbo.viewPos - frg_worldPos);
+	vec3 reflectDir = reflect(-lightDirTan, nrmTan);
+	r = dot(-viewDir, reflectDir);
+	r = max(0, r);
+	r = pow(r, modelUbo.shininess);
+	r = unnormalize(modelUbo.minSpecular, modelUbo.maxSpecular, r);
+	r = max(0, r);
 	return r;
 }
 
