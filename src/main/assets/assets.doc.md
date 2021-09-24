@@ -28,8 +28,8 @@ A valid set of model files may be:
 
 The scene is specified in `assets/scene.cfg`. A scene consists of multiple
 objects that may share the same model, and the properties of the models
-themselves. The file consists of two root elements, `objects` and `models`;
-both are lists of groups of settings.
+themselves. The file consists of three root elements: `objects`, `models` and `pointLight`;
+the first two are lists of groups of settings, the last one is an array of 4 elements.
 
 ## Objects
 
@@ -53,6 +53,14 @@ Groups in the `models` list have the following properties:
 - `minSpecular`: the minimum multiplier for specular reflections;
 - `maxSpecular`: the maximum multiplier for specular reflections;
 - `mergeVertices`: whether the model normals should be merged together (defaults to `false`).
+
+## Point Light
+
+At the time of writing, Volcanpp uses two light sources: the sun, that affects all surfaces the same way, and one "point light", that behaves like a light bulb would.
+
+The former can be configured in `params.cfg`, the latter **must** be configured in `scene.cfg` as follows:
+- the first three components of the `pointLight` array specify the initial position of the point light (X, Y, Z components);
+- the fourth component specifies the intensity of the light.
 
 ## Examples
 
@@ -92,6 +100,8 @@ models = (
 		maxSpecular = 1.0;
 	}
 );
+
+pointLight = [ 0.0, 1.0, 0.0, 3.2 ];
 ```
 
 
