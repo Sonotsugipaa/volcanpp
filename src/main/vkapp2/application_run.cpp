@@ -935,11 +935,8 @@ namespace vka2 {
 					ctx.instances.flush();
 					auto draw = [&ctx](
 							RenderPass::FrameHandle& fh, vk::CommandBuffer cmd,
-							const Object& obj, uint32_t instanceIdx,
-							Pipeline& pipeline
+							const Object& obj, uint32_t instanceIdx
 					) {
-						cmd.bindPipeline(
-							vk::PipelineBindPoint::eGraphics, pipeline.handle());
 						cmd.bindVertexBuffers(0, obj.mdlWr->vtxBuffer().handle, { 0 });
 						cmd.bindVertexBuffers(1, ctx.instances.devBuffer().handle, { 0 });
 						cmd.bindIndexBuffer(obj.mdlWr->idxBuffer().handle,
@@ -950,13 +947,15 @@ namespace vka2 {
 					ctx.rpass.runRenderPass(frameUbo, { }, { }, {
 						std::function([&](RenderPass::FrameHandle& fh, vk::CommandBuffer cmd) {
 							assert(ctx.instances.size() == ctx.objects.size());
+							cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, ctx.mainPipeline.handle());
 							for(size_t i=0; i < ctx.objects.size(); ++i) {
-								draw(fh, cmd, ctx.objects[i], i, ctx.mainPipeline); }
+								draw(fh, cmd, ctx.objects[i], i); }
 						}),
 						std::function([&](RenderPass::FrameHandle& fh, vk::CommandBuffer cmd) {
 							assert(ctx.instances.size() == ctx.objects.size());
+							cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, ctx.outlinePipeline.handle());
 							for(size_t i=0; i < ctx.objects.size(); ++i) {
-								draw(fh, cmd, ctx.objects[i], i, ctx.outlinePipeline); }
+								draw(fh, cmd, ctx.objects[i], i); }
 						})
 					});
 					{ // Framerate throttle

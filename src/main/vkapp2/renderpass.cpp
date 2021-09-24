@@ -452,12 +452,8 @@ namespace {
 					graphicsQueueFamily));  util::alloc_tracker.alloc("RenderPass:ImageData:cmdPool");
 				auto cmdBufferVector = dev.allocateCommandBuffers(
 					vk::CommandBufferAllocateInfo(r.cmdPool, vk::CommandBufferLevel::ePrimary, 2));
-				assert(cmdBufferVector.size() == r.cmdBuffer.size());
-				std::move(cmdBufferVector.begin(), cmdBufferVector.end(), r.cmdBuffer.begin());
-				cmdBufferVector = dev.allocateCommandBuffers(
-					vk::CommandBufferAllocateInfo(r.cmdPool, vk::CommandBufferLevel::eSecondary, 2));
-				assert(cmdBufferVector.size() == r.secondaryDrawBuffers.size());
-				std::move(cmdBufferVector.begin(), cmdBufferVector.end(), r.secondaryDrawBuffers.begin());
+				assert(cmdBufferVector.size() == r.cmdBuffers.size());
+				std::move(cmdBufferVector.begin(), cmdBufferVector.end(), r.cmdBuffers.begin());
 			} { // Create the descriptor sets
 				auto mkDescSet = [dsPool, dev](
 						vk::DescriptorSetLayout layout
@@ -557,34 +553,25 @@ namespace {
 		unsigned subpass = 0;
 		unsigned iterations = renderFunctions.size() - 1; // Last iteration does not .nextSubpass(...)
 		RenderPass::FrameHandle fh = { rPass, frame, img };
-		cbiInfo.setRenderPass(rPass.handle());
-		cbiInfo.setFramebuffer(img.framebuffer);
-		cbiInfo.setOcclusionQueryEnable(false);
-		cbbInfo.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit | vk::CommandBufferUsageFlagBits::eRenderPassContinue);
-		cbbInfo.setPInheritanceInfo(&cbiInfo);
 		const auto runSubpass = [
 				primaryCmd, img,
-				&rPass, &cbiInfo, &cbbInfo, &frame, &fh
+				&rPass, &frame, &fh
 		] (unsigned subpass, RenderPass::RenderFunction& fn) {
-			const auto& secBuffer = img.secondaryDrawBuffers[subpass];
-			cbiInfo.setSubpass(subpass);
-			secBuffer.begin(cbbInfo);
-			secBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+			const auto& drawBuffer = img.cmdBuffers[0];
+			drawBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
 				rPass.pipelineLayout(), ubo::Frame::set,
 				img.frameDescSet,
 				{ });
-			secBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+			drawBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
 				rPass.pipelineLayout(), ubo::Static::set,
 				img.staticDescSet,
 				{ });
-			fn(fh, secBuffer);
-			secBuffer.end();
-			primaryCmd.executeCommands(secBuffer);
+			fn(fh, drawBuffer);
 		};
 		if(preRender)  preRender(fh);
 		for(unsigned i=0; i < iterations; ++i) {
 			runSubpass(subpass, renderFunctions[i]);
-			primaryCmd.nextSubpass(vk::SubpassContents::eSecondaryCommandBuffers);
+			primaryCmd.nextSubpass(vk::SubpassContents::eInline);
 			++subpass;
 		}
 		runSubpass(subpass, renderFunctions.back());
@@ -791,8 +778,8 @@ namespace vka2 {
 			}
 			img = &_data.swpchnImages[imgIndex];
 		} { // Run render pass
-			auto renderCmd = img->second.cmdBuffer[0];
-			auto blitCmd = img->second.cmdBuffer[1];
+			auto renderCmd = img->second.cmdBuffers[0];
+			auto blitCmd = img->second.cmdBuffers[1];
 			auto colorSubresRange = vk::ImageSubresourceRange(
 				vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
 			{ // Begin recording the cmd buffer
@@ -823,7 +810,7 @@ namespace vka2 {
 				rpbInfo.framebuffer = img->second.framebuffer;
 				rpbInfo.setClearValues(clearValues);
 				rpbInfo.renderArea = vk::Rect2D({ 0, 0 }, _data.renderExtent);
-				renderCmd.beginRenderPass(rpbInfo, vk::SubpassContents::eSecondaryCommandBuffers);
+				renderCmd.beginRenderPass(rpbInfo, vk::SubpassContents::eInline);
 			} { // Update the UBO descriptors
 				vk::WriteDescriptorSet wr;
 				vk::DescriptorBufferInfo dbInfo;

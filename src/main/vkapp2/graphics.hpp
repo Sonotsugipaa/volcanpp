@@ -366,8 +366,7 @@ namespace vka2 {
 			vk::ImageView resolveTargetView;
 			vk::Framebuffer framebuffer;
 			vk::CommandPool cmdPool;
-			std::array<vk::CommandBuffer, 2> cmdBuffer; // [0] Render pass, [1] blit to present
-			std::array<vk::CommandBuffer, 2> secondaryDrawBuffers; // One for each subpass
+			std::array<vk::CommandBuffer, 2> cmdBuffers; // [0] Render pass, [1] blit to present
 			BufferAlloc frameUbo;
 			BufferAlloc staticUbo;
 			unsigned long staticUboWrCounter;
