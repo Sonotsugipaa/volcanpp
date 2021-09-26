@@ -263,16 +263,13 @@ namespace {
 			vk::Device dev, unsigned swpChnImgCount
 	) {
 		auto sizes = std::array<vk::DescriptorPoolSize, 2> {
-			vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, 3 * swpChnImgCount),
-			vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 4 * ESTIMATED_MAX_MODEL_COUNT)
+			vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, (2 * swpChnImgCount) + 2),
+			vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 3 * ESTIMATED_MAX_MATERIAL_COUNT)
 		};
 		vk::DescriptorPoolCreateInfo dpcInfo;
 		dpcInfo.flags = vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind;
 		dpcInfo.setPoolSizes(sizes);
-		dpcInfo.maxSets = swpChnImgCount * (
-			2 // Static UBO + frame UBO
-			+ ESTIMATED_MAX_MODEL_COUNT
-		);
+		dpcInfo.maxSets = swpChnImgCount * ESTIMATED_MAX_OBJECT_COUNT;
 		util::logVkDebug()
 			<< "Creating descriptor pool with max." << dpcInfo.maxSets
 			<< " descriptor sets for max."
@@ -502,7 +499,7 @@ namespace {
 
 	void set_mdl_ubo_descriptor(
 			vk::Device dev,
-			const Model& mdl, vk::DescriptorSet dSet
+			const MeshInstance& mdl, vk::DescriptorSet dSet
 	) {
 		vk::WriteDescriptorSet wdSet;
 		vk::DescriptorBufferInfo dbInfo;
@@ -584,21 +581,21 @@ namespace {
 
 namespace vka2 {
 
-	void RenderPass::FrameHandle::updateModelDescriptors(
-			const Model& mdl, vk::DescriptorSet dSet
+	void RenderPass::FrameHandle::updateMeshDescriptors(
+			const MeshInstance& mdl, vk::DescriptorSet dSet
 	) {
 		auto dev = rpass._swapchain->application->device();
 		set_mdl_ubo_descriptor(dev, mdl, dSet);
 		set_mdl_sampler_descriptor(
-			dev, dSet, Texture::samplerDescriptorBindings[0], mdl.material().diffuseTexture);
+			dev, dSet, Texture::samplerDescriptorBindings[0], mdl.textureSet().diffuseTexture);
 		set_mdl_sampler_descriptor(
-			dev, dSet, Texture::samplerDescriptorBindings[1], mdl.material().specularTexture);
+			dev, dSet, Texture::samplerDescriptorBindings[1], mdl.textureSet().specularTexture);
 		set_mdl_sampler_descriptor(
-			dev, dSet, Texture::samplerDescriptorBindings[2], mdl.material().normalTexture);
+			dev, dSet, Texture::samplerDescriptorBindings[2], mdl.textureSet().normalTexture);
 	}
 
 
-	void RenderPass::FrameHandle::bindModelDescriptorSet(
+	void RenderPass::FrameHandle::bindMeshDescriptorSet(
 			vk::CommandBuffer cmd, vk::DescriptorSet dSet
 	) {
 		static_assert(ubo::Model::set == Texture::samplerDescriptorSet);

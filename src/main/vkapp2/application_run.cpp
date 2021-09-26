@@ -280,23 +280,23 @@ namespace {
 	};
 
 
-	/** A wrapper for vka2::Model, to associate it with a descriptor set.
+	/** A wrapper for vka2::Mesh, to associate it with a descriptor set.
 	 * It also references a descriptor pool, in order to create and destroy
 	 * sets. */
-	class ModelWrapper {
-		Model::ShPtr _mdl;
+	class MeshWrapper {
+		MeshInstance::ShPtr _mdl;
 		vk::DescriptorPool _dPool;
 		vk::DescriptorSet _dSet;
 	public:
-		ModelWrapper(): _mdl() { }
+		MeshWrapper(): _mdl() { }
 
-		ModelWrapper(Model::ShPtr mdl, vk::DescriptorPool dPool, vk::DescriptorSetLayout dSetLayout):
+		MeshWrapper(MeshInstance::ShPtr mdl, vk::DescriptorPool dPool, vk::DescriptorSetLayout dSetLayout):
 				_mdl(std::move(mdl))
 		{
 			recreateDescSet(dPool, dSetLayout);
 		}
 
-		ModelWrapper(ModelWrapper&& mov):
+		MeshWrapper(MeshWrapper&& mov):
 				_mdl(std::move(mov._mdl)),
 				_dPool(std::move(mov._dPool)),
 				_dSet(std::move(mov._dSet))
@@ -314,15 +314,15 @@ namespace {
 		}
 
 
-		Model::ShPtr operator*() { return _mdl; }
-		const Model::ShPtr operator*() const { return _mdl; }
-		Model::ShPtr operator->() { return _mdl; }
-		const Model::ShPtr operator->() const { return _mdl; }
+		MeshInstance::ShPtr operator*() { return _mdl; }
+		const MeshInstance::ShPtr operator*() const { return _mdl; }
+		MeshInstance::ShPtr operator->() { return _mdl; }
+		const MeshInstance::ShPtr operator->() const { return _mdl; }
 	};
 
 
 	struct Object {
-		ModelWrapper mdlWr;
+		MeshWrapper meshWrapper;
 		glm::vec3 position;
 		glm::vec3 orientation;
 		glm::vec3 scale;
@@ -340,8 +340,8 @@ namespace {
 		Keymap keymap;
 		RenderPass rpass;
 		Pipeline mainPipeline, outlinePipeline;
-		Model::MaterialCache matCache;
-		Model::ModelCache mdlCache;
+		MeshInstance::TextureCache textureCache;
+		MeshInstance::MeshCache meshCache;
 		struct Shaders {
 			std::string mainVtx, mainFrg;
 			std::string outlineVtx, outlineFrg;
@@ -544,7 +544,6 @@ namespace {
 		sUbo.outlineSize = opts.shaderParams.outlineSize;
 		sUbo.outlineDepth = opts.shaderParams.zNear * opts.shaderParams.outlineDepth;
 		sUbo.outlineRnd = opts.shaderParams.outlineRndMorph;
-		sUbo.lightLevels = opts.shaderParams.celLightLevels;
 		rpass.setStaticUbo(sUbo);
 	}
 
@@ -605,7 +604,7 @@ namespace {
 				buildPipelines();
 				set_static_ubo(rpass, app->options());
 				for(Object& obj : (*dstObjects)) {
-					obj.mdlWr.recreateDescSet(
+					obj.meshWrapper.recreateDescSet(
 						rpass.descriptorPool(), rpass.descriptorSetLayouts()[ubo::Model::set]);
 				}
 			};
@@ -626,7 +625,7 @@ namespace {
 			set_static_ubo(dst.rpass, opts);
 
 			for(Object& obj : dst.objects) {
-				obj.mdlWr.recreateDescSet(
+				obj.meshWrapper.recreateDescSet(
 					dst.rpass.descriptorPool(), dst.rpass.descriptorSetLayouts()[ubo::Model::set]);
 			}
 		}
@@ -655,10 +654,41 @@ namespace {
 	}
 
 
+	Object* try_mk_object_info(
+			Application& app, const vka2::MeshInstance::ObjSources& src,
+			RenderContext& dst, const vka2::Scene::Object& objInfo,
+			std::map<std::string, Scene::Material*>& mtlInfoMap
+	) {
+		auto found = mtlInfoMap[objInfo.materialName];
+		if(! found) {
+			util::logGeneral()
+				<< "Material \"" << objInfo.materialName << "\" not found for mesh \""
+				<< objInfo.meshName << '"' << util::endl;
+			return nullptr;
+		} else {
+			util::logDebug()
+				<< "Using mesh \"" << objInfo.meshName << "\" with material \""
+				<< objInfo.materialName << '"' << util::endl;
+			dst.objects.push_back(std::move(Object {
+				.meshWrapper = MeshWrapper(
+					MeshInstance::fromObj(app, src, found->mergeVertices, &dst.meshCache, &dst.textureCache),
+					dst.rpass.descriptorPool(),
+					dst.rpass.descriptorSetLayouts()[ubo::Model::set]
+				),
+				.position = glm::vec3(objInfo.position[0], objInfo.position[1], objInfo.position[2]),
+				.orientation = glm::vec3(objInfo.orientation[0], objInfo.orientation[1], objInfo.orientation[2]),
+				.scale = glm::vec3(objInfo.scale[0], objInfo.scale[1], objInfo.scale[2]),
+				.color = glm::vec4(objInfo.color[0], objInfo.color[1], objInfo.color[2], objInfo.color[3]),
+				.rnd = dst.rngDistr(dst.rng)
+			}));
+			return &dst.objects.back();
+		}
+	}
+
+
 	void load_ctx_assets(Application& app, RenderContext& dst) {
 		static_assert(ubo::Model::set == Texture::samplerDescriptorSet);
-		constexpr auto mdlDescSetLayoutIndex = ubo::Model::set;
-		std::map<std::string, Scene::Model*> mdlInfoMap;
+		std::map<std::string, Scene::Material*> mtlInfoMap;
 		std::string assetPath = get_asset_path();
 		auto& worldOpts = app.options().worldParams;
 		Scene scene;
@@ -666,14 +696,14 @@ namespace {
 			std::string scenePath = assetPath + "/scene.cfg";
 			util::logDebug() << "Reading scene from \"" << scenePath << '"' << util::endl;
 			scene = Scene::fromCfg(scenePath);
-			util::logDebug() << "Scene has " << scene.objects.size() << " objects:" << util::endl;
-		} { // Make name -> model associations
-			for(auto& mdlInfo : scene.models) {
-				util::logDebug() << "- \"" << mdlInfo.name
-					<< "\", (" << mdlInfo.minDiffuse << ", " << mdlInfo.maxDiffuse << "), ("
-					<< mdlInfo.minSpecular << ", " << mdlInfo.maxSpecular << ", "
-					<< mdlInfo.shininess << ')' << util::endl;
-				mdlInfoMap[mdlInfo.name] = &mdlInfo;
+			util::logDebug() << "Scene has " << scene.objects.size() << " objects" << util::endl;
+		} { // Make name -> material associations
+			for(auto& mtlInfo : scene.materials) {
+				util::logDebug() << "Material \"" << mtlInfo.name
+					<< "\", (" << mtlInfo.minDiffuse << ", " << mtlInfo.maxDiffuse << "), ("
+					<< mtlInfo.minSpecular << ", " << mtlInfo.maxSpecular << "), ("
+					<< mtlInfo.shininess << ", " << mtlInfo.celLevels << ')' << util::endl;
+				mtlInfoMap[mtlInfo.name] = &mtlInfo;
 			}
 		} { // Set the point light
 			dst.pointLight = glm::vec4 {
@@ -683,66 +713,73 @@ namespace {
 				scene.pointLight[3] };
 		} { // Create objects
 			for(auto& objInfo : scene.objects) {
-				Model::ObjSources src;
-				src.mdlName = objInfo.modelName;
-				src.objPath = assetPath + "/"s + src.mdlName + ".obj";
-				src.textureLoader = [&app, &src, &worldOpts, &assetPath](Texture::Usage usage) {
-					std::string txtrName;
+				MeshInstance::ObjSources src;
+				if(objInfo.materialName.empty()) {
+					objInfo.materialName = objInfo.meshName; }
+				src.materialName = objInfo.materialName;
+				src.objPath = assetPath + "/"s + objInfo.meshName + ".obj";
+				src.textureLoader = [
+						&app, &src, &worldOpts, &assetPath, &mtlInfoMap
+				] (Texture::Usage usage) {
+					std::string txtrName = src.materialName;
 					constexpr auto setName = [](std::string& dst, const std::string& value) {
 						dst = value;
 						util::logDebug() << "Loading texture \"" << value << '"' << util::endl;
 					};
 					switch(usage) {
 						case Texture::Usage::eDiffuse:
-							setName(txtrName, assetPath + "/"s + src.mdlName + ".dfs.png");
+							setName(txtrName, assetPath + "/"s + txtrName + ".dfs.png");
 							return rd_texture(app, txtrName,
 								worldOpts.diffuseNearestFilter, MISSING_TEXTURE_COLOR);
 						case Texture::Usage::eSpecular:
-							setName(txtrName, assetPath + "/"s + src.mdlName + ".spc.png");
+							setName(txtrName, assetPath + "/"s + txtrName + ".spc.png");
 							return rd_texture(app, txtrName,
 								worldOpts.specularNearestFilter, MISSING_TEXTURE_COLOR);
 						case Texture::Usage::eNormal:
-							setName(txtrName, assetPath + "/"s + src.mdlName + ".nrm.png");
+							setName(txtrName, assetPath + "/"s + txtrName + ".nrm.png");
 							return rd_texture(app, txtrName,
 								worldOpts.normalNearestFilter, glm::vec4(0.5f, 0.5f, 0.5f, 1.0f));
 						default: throw std::logic_error("invalid value of vka2::Texture::Usage");
 					}
 				};
-				src.postAssembly = [&src](Vertices& vtx, Indices& idx) {
+				src.postAssembly = [&src, &objInfo](Vertices& vtx, Indices& idx) {
 					size_t vtxSize = vtx.size() * sizeof(Vertex);
 					size_t idxSize = idx.size() * sizeof(Vertex::index_t);
 					util::logDebug()
-						<< "Model \"" << src.mdlName << "\" has " << idx.size() << " vertices ("
+						<< "Mesh \"" << objInfo.meshName << "\" has " << idx.size() << " vertices ("
 						<< vtxSize << '+' << idxSize << " = " << static_cast<size_t>(
 							std::ceil(static_cast<float>(vtxSize + idxSize) / (1024.0f*1024.0f))
 						) << "MiB)" << util::endl;
 				};
-				dst.objects.push_back(std::move(Object {
-					.mdlWr = ModelWrapper(
-						Model::fromObj(app, src,
-							mdlInfoMap[objInfo.modelName]->mergeVertices,
-							&dst.mdlCache, &dst.matCache),
-						dst.rpass.descriptorPool(),
-						dst.rpass.descriptorSetLayouts()[mdlDescSetLayoutIndex]
-					),
-					.position = glm::vec3(objInfo.position[0], objInfo.position[1], objInfo.position[2]),
-					.orientation = glm::vec3(objInfo.orientation[0], objInfo.orientation[1], objInfo.orientation[2]),
-					.scale = glm::vec3(objInfo.scale[0], objInfo.scale[1], objInfo.scale[2]),
-					.color = glm::vec4(objInfo.color[0], objInfo.color[1], objInfo.color[2], objInfo.color[3]),
-					.rnd = dst.rngDistr(dst.rng)
-				}));
-			}
-		} { // Associate models with automatically created models
-			for(auto& mdlInfo : scene.models) {
-				auto found = dst.mdlCache.find(mdlInfo.name);
-				if(found != dst.mdlCache.end()) {
-					found->second->viewUbo([&dst, &mdlInfo](MemoryView<ubo::Model> ubo) {
+				auto* newObj = try_mk_object_info(app, src, dst, objInfo, mtlInfoMap);
+				if(newObj != nullptr) {
+					auto matInfo = mtlInfoMap.find(src.materialName);
+					assert(matInfo != mtlInfoMap.end());
+					newObj->meshWrapper->viewUbo([&dst, &matInfo](MemoryView<ubo::Model> ubo) {
 						*ubo.data = ubo::Model {
-							.minDiffuse = mdlInfo.minDiffuse,
-							.maxDiffuse = mdlInfo.maxDiffuse,
-							.minSpecular = mdlInfo.minSpecular,
-							.maxSpecular = mdlInfo.maxSpecular,
-							.shininess = mdlInfo.shininess,
+							.minDiffuse = matInfo->second->minDiffuse,
+							.maxDiffuse = matInfo->second->maxDiffuse,
+							.minSpecular = matInfo->second->minSpecular,
+							.maxSpecular = matInfo->second->maxSpecular,
+							.shininess = matInfo->second->shininess,
+							.celLevels = matInfo->second->celLevels,
+							.rnd = dst.rngDistr(dst.rng) };
+						return true;
+					});
+				}
+			}
+		} { // Associate materials to texture sets
+			for(auto& matInfo : scene.materials) {
+				auto found = dst.meshCache.find(matInfo.name);
+				if(found != dst.meshCache.end()) {
+					found->second->viewUbo([&dst, &matInfo](MemoryView<ubo::Model> ubo) {
+						*ubo.data = ubo::Model {
+							.minDiffuse = matInfo.minDiffuse,
+							.maxDiffuse = matInfo.maxDiffuse,
+							.minSpecular = matInfo.minSpecular,
+							.maxSpecular = matInfo.maxSpecular,
+							.shininess = matInfo.shininess,
+							.celLevels = matInfo.celLevels,
 							.rnd = dst.rngDistr(dst.rng) };
 						return true;
 					});
@@ -777,7 +814,7 @@ namespace {
 			return ctx.objects[ctx.rng() % ctx.objects.size()];
 		} ();
 		ctx.objects.push_back(Object {
-			.mdlWr = ModelWrapper(*clonee.mdlWr,
+			.meshWrapper = MeshWrapper(*clonee.meshWrapper,
 				ctx.rpass.descriptorPool(),
 				ctx.rpass.descriptorSetLayouts()[ubo::Model::set] ),
 			.position = glm::vec3(
@@ -920,7 +957,7 @@ namespace vka2 {
 				{
 					size_t vtxCount = 0;
 					for(const auto& obj : ctx.objects) {
-						vtxCount += obj.mdlWr->idxCount(); }
+						vtxCount += obj.meshWrapper->idxCount(); }
 					util::logDebug() << "Rendering " << vtxCount << " vertices each frame" << util::endl;
 				}
 				while(! glfwWindowShouldClose(_data.glfwWin)) {
@@ -937,12 +974,12 @@ namespace vka2 {
 							RenderPass::FrameHandle& fh, vk::CommandBuffer cmd,
 							const Object& obj, uint32_t instanceIdx
 					) {
-						cmd.bindVertexBuffers(0, obj.mdlWr->vtxBuffer().handle, { 0 });
+						cmd.bindVertexBuffers(0, obj.meshWrapper->vtxBuffer().handle, { 0 });
 						cmd.bindVertexBuffers(1, ctx.instances.devBuffer().handle, { 0 });
-						cmd.bindIndexBuffer(obj.mdlWr->idxBuffer().handle,
+						cmd.bindIndexBuffer(obj.meshWrapper->idxBuffer().handle,
 							0, Vertex::INDEX_TYPE);
-						fh.bindModelDescriptorSet(cmd, obj.mdlWr.descSet());
-						cmd.drawIndexed(obj.mdlWr->idxCount(), 1, 0, 0, instanceIdx);
+						fh.bindMeshDescriptorSet(cmd, obj.meshWrapper.descSet());
+						cmd.drawIndexed(obj.meshWrapper->idxCount(), 1, 0, 0, instanceIdx);
 					};
 					ctx.rpass.runRenderPass(frameUbo, { }, { }, {
 						std::function([&](RenderPass::FrameHandle& fh, vk::CommandBuffer cmd) {

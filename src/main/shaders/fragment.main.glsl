@@ -32,7 +32,6 @@ layout(set = 0, binding = 0) uniform StaticUbo {
 	float outlineSize;
 	float outlineDepth;
 	float outlineRnd;
-	uint lightLevels;
 } staticUbo;
 
 layout(set = 1, binding = 0) uniform ModelUbo {
@@ -41,6 +40,7 @@ layout(set = 1, binding = 0) uniform ModelUbo {
 	float minSpecular;
 	float maxSpecular;
 	float shininess;
+	uint celLevels;
 	float rnd;
 } modelUbo;
 
@@ -91,6 +91,17 @@ float shave(float value, float stride, float bias) {
 	float valueMul = value / stride;
 	float valueFloor = floor(valueMul + bias);
 	return valueFloor * stride;
+}
+
+
+float celShade(float lightLevel) {
+	float r = lightLevel;
+	float noCelShading = float(modelUbo.celLevels < 1);
+	// (modelUbo.celLevels + noCelShading) has no tangible effect, but prevents division by zero
+	r =
+		(1-noCelShading) * shave(r, 1.0 / float(modelUbo.celLevels + noCelShading), 0.5) +
+		noCelShading * r;
+	return r;
 }
 
 
@@ -223,8 +234,8 @@ void main_2() {
 	}
 
 	// Apply cel-shading
-	diffuse = shave(diffuse, 1.0 / float(staticUbo.lightLevels), 0.5);
-	specular = shave(specular, 1.0 / float(staticUbo.lightLevels), 0.5);
+	diffuse = celShade(diffuse);
+	specular = celShade(specular);
 
 	// Compute the color output
 	out_col.rgb =
@@ -281,8 +292,8 @@ void main_4() {
 	}
 
 	// Apply cel-shading
-	diffuse = shave(diffuse, 1.0 / float(staticUbo.lightLevels), 0.5);
-	specular = shave(specular, 1.0 / float(staticUbo.lightLevels), 0.5);
+	diffuse = celShade(diffuse);
+	specular = celShade(specular);
 
 	// Compute the color output
 	out_col.rgb =
@@ -343,8 +354,8 @@ void main_6() {
 	}
 
 	// Apply cel-shading
-	diffuse = shave(diffuse, 1.0 / float(staticUbo.lightLevels), 0.5);
-	specular = shave(specular, 1.0 / float(staticUbo.lightLevels), 0.5);
+	diffuse = celShade(diffuse);
+	specular = celShade(specular);
 
 	// Compute the color output
 	out_col.rgb =

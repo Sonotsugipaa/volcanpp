@@ -110,17 +110,13 @@ namespace {
 	}
 
 
-	Material load_material(
+	TextureSet load_texture(
 			Application& app, std::function<Texture (Texture::Usage)> loader
 	) {
-		Material r;
+		TextureSet r;
 		r.diffuseTexture = loader(Texture::Usage::eDiffuse);
 		r.specularTexture = loader(Texture::Usage::eSpecular);
 		r.normalTexture = loader(Texture::Usage::eNormal);
-		r.minDiffuse = 0.0f;
-		r.maxDiffuse = 1.0f;
-		r.minSpecular = 0.0f;
-		r.maxSpecular = 1.0f;
 		return r;
 	}
 
@@ -148,12 +144,12 @@ namespace {
 	struct MdlData {
 		Vertices vtx;
 		Indices idx;
-		Material::ShPtr mat;
+		TextureSet::ShPtr mat;
 	};
 
 	MdlData mk_model_from_obj(
-			Application& app, const Model::ObjSources& src, bool doMerge,
-			Model::MaterialCache* matCache = nullptr
+			Application& app, const MeshInstance::ObjSources& src, bool doMerge,
+			MeshInstance::TextureCache* matCache = nullptr
 	) {
 		MdlData r;
 		tinyobj::attrib_t attrib;
@@ -162,12 +158,12 @@ namespace {
 		std::string warn, err;
 		if(matCache != nullptr) {
 			// Try to find an existing material, or load it into the cache
-			auto found = matCache->find(src.mdlName);
+			auto found = matCache->find(src.materialName);
 			if(found != matCache->end()) {
 				r.mat = found->second;
 			} else {
-				r.mat = (*matCache)[src.mdlName] = std::make_shared<Material>(load_material(
-					app, src.textureLoader));
+				r.mat = std::make_shared<TextureSet>(load_texture(app, src.textureLoader));
+				(*matCache)[src.materialName] = r.mat;
 			}
 		} { // Load the data
 			tinyobj::ObjReader reader;
@@ -278,33 +274,33 @@ namespace {
 
 namespace vka2 {
 
-	Model::ShPtr Model::fromObj(
+	MeshInstance::ShPtr MeshInstance::fromObj(
 			Application& app, const ObjSources& src,
 			bool mergeVertices,
-			ModelCache* mdlCache, MaterialCache* matCache
+			MeshCache* mdlCache, TextureCache* matCache
 	) {
 		if(mdlCache != nullptr) {
 			// Try to find an existing model before proceeding with the loading procedure
-			auto found = mdlCache->find(src.mdlName);
+			auto found = mdlCache->find(src.objPath);
 			if(found != mdlCache->end()) {
 				return found->second; }
 		} {
 			auto mdlData = mk_model_from_obj(app, src, mergeVertices, matCache);
-			auto r = std::make_shared<Model>(app,
+			auto r = std::make_shared<MeshInstance>(app,
 				std::move(mdlData.vtx), std::move(mdlData.idx), std::move(mdlData.mat));
 			if(mdlCache != nullptr) {
-				(*mdlCache)[src.mdlName] = r; }
+				(*mdlCache)[src.objPath] = r; }
 			return r;
 		}
 	}
 
 
-	Model::Model():
+	MeshInstance::MeshInstance():
 			_app(nullptr)
 	{ }
 
 
-	Model::Model(Application& app, const Vertices& vtx, const Indices& idx, Material::ShPtr mat):
+	MeshInstance::MeshInstance(Application& app, const Vertices& vtx, const Indices& idx, TextureSet::ShPtr mat):
 			_app(&app),
 			_vtx_count(vtx.size()),
 			_idx_count(idx.size()),
@@ -324,11 +320,11 @@ namespace vka2 {
 			_ubo = _app->createBuffer(bcInfo,
 				VMA_MEMORY_USAGE_CPU_TO_GPU);
 		}
-		util::alloc_tracker.alloc("Model");
+		util::alloc_tracker.alloc("Mesh");
 	}
 
 
-	Model::Model(Model&& mov):
+	MeshInstance::MeshInstance(MeshInstance&& mov):
 			#define _MOV(_F) _F(std::move(mov._F))
 			_MOV(_app),
 			_MOV(_vtx),  _MOV(_vtx_count),
@@ -341,24 +337,24 @@ namespace vka2 {
 	}
 
 
-	Model::~Model() {
+	MeshInstance::~MeshInstance() {
 		if(_app != nullptr) {
 			_app->destroyBuffer(_vtx);
 			_app->destroyBuffer(_idx);
 			_app->destroyBuffer(_ubo);
 			_app = nullptr;
-			util::alloc_tracker.dealloc("Model");
+			util::alloc_tracker.dealloc("Mesh");
 		}
 	}
 
 
-	Model& Model::operator=(Model&& mov) {
-		this->~Model();
-		return *(new (this) Model(std::move(mov)));
+	MeshInstance& MeshInstance::operator=(MeshInstance&& mov) {
+		this->~MeshInstance();
+		return *(new (this) MeshInstance(std::move(mov)));
 	}
 
 
-	std::vector<vk::DescriptorSet> Model::makeDescriptorSets(
+	std::vector<vk::DescriptorSet> MeshInstance::makeDescriptorSets(
 			vk::DescriptorPool dPool,
 			vk::DescriptorSetLayout layout,
 			unsigned count
@@ -375,8 +371,9 @@ namespace vka2 {
 			dsaInfo.descriptorPool = dPool;
 			dsaInfo.setSetLayouts(layoutCopies);
 			r = _app->device().allocateDescriptorSets(dsaInfo);
+			util::logVkDebug() << "Allocated " << r.size() << " descriptor sets" << util::endl;
 			/* Descriptor sets do not have to be freed... I think?
-			util::alloc_tracker.alloc("Model:makeDescriptorSets(...)", r.size()); */
+			util::alloc_tracker.alloc("Mesh:makeDescriptorSets(...)", r.size()); */
 		} { // Update the UBO buffer descriptors
 			vk::DescriptorBufferInfo dbInfo;
 			auto wdSets = std::vector<vk::WriteDescriptorSet>(r.size());
@@ -432,7 +429,7 @@ namespace vka2 {
 	}
 
 
-	void Model::viewUbo(std::function<bool (MemoryView<UboType>)> fn) {
+	void MeshInstance::viewUbo(std::function<bool (MemoryView<UboType>)> fn) {
 		static_assert((UboType::dma == true) && "Without direct memory access, the UBO would need to be staged");
 		assert(_app != nullptr);
 		UboType* mmapd = reinterpret_cast<UboType*>(

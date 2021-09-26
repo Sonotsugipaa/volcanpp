@@ -143,7 +143,6 @@ namespace vka2 {
 			SPIRV_ALIGNED(float)      outlineSize; // Measured in world units
 			SPIRV_ALIGNED(float)      outlineDepth; // Scales with zNear, unfortunately
 			SPIRV_ALIGNED(float)      outlineRnd; // Random factor for outline vertex positions
-			SPIRV_ALIGNED(uint32_t)   lightLevels;
 		};
 
 		/* The model Uniform Buffer Object holds data that only needs to be
@@ -158,6 +157,7 @@ namespace vka2 {
 			SPIRV_ALIGNED(float)      minSpecular;
 			SPIRV_ALIGNED(float)      maxSpecular;
 			SPIRV_ALIGNED(float)      shininess;
+			SPIRV_ALIGNED(unsigned)   celLevels;
 			SPIRV_ALIGNED(float)      rnd; // Different for every model
 		};
 

@@ -32,7 +32,6 @@ layout(set = 0, binding = 0) uniform StaticUbo {
 	float outlineSize;
 	float outlineDepth;
 	float outlineRnd;
-	uint lightLevels;
 } staticUbo;
 
 layout(set = 1, binding = 0) uniform ModelUbo {
@@ -41,6 +40,7 @@ layout(set = 1, binding = 0) uniform ModelUbo {
 	float minSpecular;
 	float maxSpecular;
 	float shininess;
+	uint celLevels;
 	float rnd;
 } modelUbo;
 

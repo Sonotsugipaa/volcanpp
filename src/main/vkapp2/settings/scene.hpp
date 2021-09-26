@@ -35,26 +35,28 @@ namespace vka2 {
 	struct Scene {
 
 		struct Object {
-			std::string modelName = "";
+			std::string meshName = "";
+			std::string materialName = "";
 			std::array<float, 3> position = { };
 			std::array<float, 3> orientation = { }; // Yaw, pitch, roll
 			std::array<float, 3> scale = { 1.0f, 1.0f, 1.0f };
 			std::array<float, 4> color = { 1.0f, 1.0f, 1.0f, 1.0f };
 		};
 
-		struct Model {
+		struct Material {
 			std::string name = "";
 			float minDiffuse = 0.0f;
 			float maxDiffuse = 0.7f;
 			float minSpecular = 0.0f;
 			float maxSpecular = 0.3f;
 			float shininess = 16.0f;
+			uint_least16_t celLevels = 6;
 			bool mergeVertices:1 = false;
 		};
 
 
 		std::vector<Object> objects;
-		std::vector<Model> models;
+		std::vector<Material> materials;
 		std::array<float, 4> pointLight;
 
 

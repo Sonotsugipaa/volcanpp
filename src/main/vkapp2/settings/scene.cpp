@@ -49,7 +49,8 @@ namespace vka2 {
 			auto& objs = cfg.getRoot()["objects"];
 			for(auto& elem : objs) {
 				Object obj;
-				GET_VALUE(modelName,   std::string)
+				GET_VALUE(meshName, std::string)
+				GET_VALUE(materialName, std::string)
 				GET_ARRAY(position)
 				GET_ARRAY(orientation)
 				GET_ARRAY(color)
@@ -59,23 +60,24 @@ namespace vka2 {
 			#undef GET_VALUE
 			#undef GET_ARRAY
 		} {
-			#define GET_VALUE(_N, _T) if(elem.exists(#_N)) mdl._N = elem[#_N].operator _T();
+			#define GET_VALUE(_N, _T) if(elem.exists(#_N)) mtl._N = elem[#_N].operator _T();
 			#define GET_ARRAY(_N) if(elem.exists(#_N)) std::copy( \
 				elem[#_N].begin(), \
-				elem[#_N].begin() + std::min<int>(mdl._N.size(), elem[#_N].end() - elem[#_N].begin()), \
-				mdl._N.begin());
+				elem[#_N].begin() + std::min<int>(mtl._N.size(), elem[#_N].end() - elem[#_N].begin()), \
+				mtl._N.begin());
 			// --
-			auto& mdls = cfg.getRoot()["models"];
-			for(auto& elem : mdls) {
-				Model mdl;
-				GET_VALUE(name,        std::string)
-				GET_VALUE(minDiffuse,  float)
-				GET_VALUE(maxDiffuse,  float)
-				GET_VALUE(minSpecular, float)
-				GET_VALUE(maxSpecular, float)
-				GET_VALUE(shininess,   float)
+			auto& mtls = cfg.getRoot()["materials"];
+			for(auto& elem : mtls) {
+				Material mtl;
+				GET_VALUE(name,          std::string)
+				GET_VALUE(minDiffuse,    float)
+				GET_VALUE(maxDiffuse,    float)
+				GET_VALUE(minSpecular,   float)
+				GET_VALUE(maxSpecular,   float)
+				GET_VALUE(shininess,     float)
+				GET_VALUE(celLevels,     unsigned)
 				GET_VALUE(mergeVertices, bool)
-				r.models.emplace_back(std::move(mdl));
+				r.materials.emplace_back(std::move(mtl));
 			}
 			#undef GET_VALUE
 			#undef GET_ARRAY

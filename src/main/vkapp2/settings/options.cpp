@@ -135,10 +135,8 @@ namespace vka2 {
 		GET_SETTING(shaderParams, outlineSize, float);
 		GET_SETTING(shaderParams, outlineDepth, float);
 		GET_SETTING(shaderParams, outlineRndMorph, float);
-		GET_SETTING(shaderParams, celLightLevels, unsigned short);
 		GET_SETTING_ARRAY(worldParams, clearColor, float);
 		GET_SETTING_ARRAY(worldParams, lightDirection, float);
-		GET_SETTING(worldParams, assetPath, std::string);
 		GET_SETTING(worldParams, diffuseNearestFilter, bool);
 		GET_SETTING(worldParams, specularNearestFilter, bool);
 		GET_SETTING(worldParams, normalNearestFilter, bool);

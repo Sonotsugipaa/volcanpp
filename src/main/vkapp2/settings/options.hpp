@@ -46,16 +46,12 @@ namespace vka2 {
 			float outlineDepth = 1.0f / 20.0f;
 			// The maximum variation of an outline vertex (relative to outlineSize, should be >= 0).
 			float outlineRndMorph = 1.0f / 10.0f;
-			// The number of possible light levels when cel shading is enabled.
-			unsigned short celLightLevels = 6;
 		} shaderParams;
 		struct WorldParams {
 			// The default color for unused pixels.
 			std::array<float, 4> clearColor = { 0.2f, 0.2f, 0.7f, 1.0f };
 			// Direction from which light comes from.
 			std::array<float, 3> lightDirection = { 1.0f, -1.0f, 1.0f };
-			// Where various assets are stored.
-			std::string assetPath = "assets";
 			// Use the nearest neighbor filter for diffuse textures.
 			bool diffuseNearestFilter:1 = true;
 			// Use the nearest neighbor filter for specular textures.

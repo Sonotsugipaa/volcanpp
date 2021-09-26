@@ -44,7 +44,7 @@ namespace vka2 {
 
 		constexpr bool USE_LINEAR_MIPMAPS = true;
 		constexpr unsigned MAX_MIP_LEVELS = 1<<5;
-		constexpr float LOD_BIAS = 0.05f;
+		constexpr float LOD_BIAS = 0.2f;
 
 		constexpr unsigned MAX_CONCURRENT_FRAMES = 3;
 

@@ -76,7 +76,7 @@ namespace vka2 {
 	class RenderPass;
 
 
-	/* Used by Model to temporarily expose
+	/* Used by Mesh to temporarily expose
 	 * mmapped device-local buffers *//**/
 	template<typename _datum_t>
 	struct MemoryView {
@@ -143,34 +143,32 @@ namespace vka2 {
 	};
 
 
-	struct Material {
-		using ShPtr = std::shared_ptr<Material>;
+	struct TextureSet {
+		using ShPtr = std::shared_ptr<TextureSet>;
 
 		Texture diffuseTexture;
 		Texture specularTexture;
 		Texture normalTexture;
-		float minDiffuse, maxDiffuse;
-		float minSpecular, maxSpecular;
 	};
 
 
-	class Model {
+	class MeshInstance {
 	public:
-		using ShPtr = std::shared_ptr<Model>;
+		using ShPtr = std::shared_ptr<MeshInstance>;
 		using UboType = ubo::Model;
-		using MaterialCache = std::map<std::string, Material::ShPtr>;
-		using ModelCache = std::map<std::string, Model::ShPtr>;
+		using TextureCache = std::map<std::string, TextureSet::ShPtr>;
+		using MeshCache = std::map<std::string, MeshInstance::ShPtr>;
 
 	private:
 		Application* _app; // Dependency injection
 		BufferAlloc _vtx;  Vertex::index_t _vtx_count;
 		BufferAlloc _idx;  Vertex::index_t _idx_count;
 		BufferAlloc _ubo;
-		Material::ShPtr _mat;
+		TextureSet::ShPtr _mat;
 
 	public:
 		struct ObjSources {
-			std::string mdlName; // Used for caches:
+			std::string materialName; // Used for caches
 			std::string objPath;
 			std::function<Texture (Texture::Usage)> textureLoader;
 			std::function<void (Vertices&, Indices&)> postAssembly;
@@ -186,23 +184,23 @@ namespace vka2 {
 		 * Cache parameters are pointers, as they're optional: if a cache is
 		 * not nullptr, the function attempts to reuse an existing material/model
 		 * instead of creating a redundant one; otherwise, the returned shared
-		 * pointer will always have a unique Model with unique textures. */
+		 * pointer will always have a unique Mesh with unique textures. */
 		static ShPtr fromObj(
 			Application& application,
 			const ObjSources& sources,
 			bool mergeVertices,
-			ModelCache* mdlCache = nullptr,
-			MaterialCache* matCache = nullptr);
+			MeshCache* mdlCache = nullptr,
+			TextureCache* matCache = nullptr);
 
 
-		Model();
-		Model(Application&, const Vertices&, const Indices&, Material::ShPtr);
+		MeshInstance();
+		MeshInstance(Application&, const Vertices&, const Indices&, TextureSet::ShPtr);
 
-		Model(Model&&);
+		MeshInstance(MeshInstance&&);
 
-		~Model();
+		~MeshInstance();
 
-		Model& operator=(Model&&);
+		MeshInstance& operator=(MeshInstance&&);
 
 		GETTER_REF(_app,       application)
 		GETTER_REF(_vtx,       vtxBuffer  )
@@ -211,7 +209,7 @@ namespace vka2 {
 		GETTER_VAL(_idx_count, idxCount   )
 		GETTER_REF(_ubo,       uboBuffer  )
 
-		inline const Material& material() const { return *_mat.get(); }
+		inline const TextureSet& textureSet() const { return *_mat.get(); }
 
 		/** Convenience function to allocate one or more descriptor sets, then */
 		std::vector<vk::DescriptorSet> makeDescriptorSets(
@@ -388,8 +386,8 @@ namespace vka2 {
 			RenderPass::FrameData& frameData;
 			RenderPass::ImageData& imageData;
 
-			void updateModelDescriptors(const Model&, vk::DescriptorSet);
-			void bindModelDescriptorSet(vk::CommandBuffer, vk::DescriptorSet);
+			void updateMeshDescriptors(const MeshInstance&, vk::DescriptorSet);
+			void bindMeshDescriptorSet(vk::CommandBuffer, vk::DescriptorSet);
 		};
 		friend FrameHandle;
 
