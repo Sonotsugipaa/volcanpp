@@ -52,10 +52,8 @@ namespace vka2 {
 
 		constexpr float LINE_WIDTH = 1.0f;
 
-		/** Used to allocate a static amount of descriptor bindings/sets. */
-		constexpr unsigned ESTIMATED_MAX_MATERIAL_COUNT = 128;
-		/** Used to allocate a static amount of descriptor bindings/sets. */
-		constexpr unsigned ESTIMATED_MAX_OBJECT_COUNT = 32;
+		/** Used to allocate a static amount of descriptor bindings. */
+		constexpr unsigned MAX_OBJECT_COUNT = 1024;
 
 		constexpr float YAW_TO_PITCH_RATIO = 2.0f / 3.0f;
 

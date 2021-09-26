@@ -371,9 +371,6 @@ namespace vka2 {
 			dsaInfo.descriptorPool = dPool;
 			dsaInfo.setSetLayouts(layoutCopies);
 			r = _app->device().allocateDescriptorSets(dsaInfo);
-			util::logVkDebug() << "Allocated " << r.size() << " descriptor sets" << util::endl;
-			/* Descriptor sets do not have to be freed... I think?
-			util::alloc_tracker.alloc("Mesh:makeDescriptorSets(...)", r.size()); */
 		} { // Update the UBO buffer descriptors
 			vk::DescriptorBufferInfo dbInfo;
 			auto wdSets = std::vector<vk::WriteDescriptorSet>(r.size());

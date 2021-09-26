@@ -262,19 +262,20 @@ namespace {
 	vk::DescriptorPool mk_desc_pool(
 			vk::Device dev, unsigned swpChnImgCount
 	) {
+		// One "size" element represents how many descriptors of type X *across all sets* can be created
 		auto sizes = std::array<vk::DescriptorPoolSize, 2> {
-			vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, (2 * swpChnImgCount) + 2),
-			vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 3 * ESTIMATED_MAX_MATERIAL_COUNT)
+			vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, (2 * swpChnImgCount) + MAX_OBJECT_COUNT),
+			vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 3 * MAX_OBJECT_COUNT)
 		};
 		vk::DescriptorPoolCreateInfo dpcInfo;
 		dpcInfo.flags = vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind;
 		dpcInfo.setPoolSizes(sizes);
-		dpcInfo.maxSets = swpChnImgCount * ESTIMATED_MAX_OBJECT_COUNT;
+		dpcInfo.maxSets = (2 * swpChnImgCount) + MAX_OBJECT_COUNT;
 		util::logVkDebug()
 			<< "Creating descriptor pool with max." << dpcInfo.maxSets
-			<< " descriptor sets for max."
-			<< sizes[0].descriptorCount << '+'
-			<< sizes[1].descriptorCount << " bindings" << util::endl;
+			<< " descriptor sets for "
+			<< sizes[0].descriptorCount << '+' << sizes[1].descriptorCount
+			<< " bindings" << util::endl;
 		return dev.createDescriptorPool(dpcInfo);
 	}
 

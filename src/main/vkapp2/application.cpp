@@ -437,7 +437,17 @@ int main(int, char**) {
 		app.destroy();
 		return EXIT_SUCCESS;
 	} catch(vk::SystemError& err) {
-		std::cerr << "[vk::SystemError] " << err.what() << std::endl;
+		std::cerr << "[vk::SystemError] " << err.what() << '\n';
+		switch(err.code().value()) {
+			case int(vk::Result::eErrorOutOfPoolMemory):
+				std::cerr
+					<< "[vk::SystemError]  This error may be caused by an eccessive number of\n"
+					<< "[vk::SystemError]  descriptor sets being requested, since the render pass\n"
+					<< "[vk::SystemError]  descriptor pool statically allocates an estimated\n"
+					<< "[vk::SystemError]  maximum number of them.\n";
+				break;
+		}
+		std::cerr << std::flush;
 	} catch(libconfig::FileIOException& err) {
 		std::cerr << "[libconfig::FileIOException] " << err.what() << std::endl;
 	} catch(std::exception& err) {
