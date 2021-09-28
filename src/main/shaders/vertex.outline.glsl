@@ -108,9 +108,11 @@ void main_1() {
 		1 - staticUbo.outlineRnd, 1 + staticUbo.outlineRnd,
 		rnd_f1(in_pos.x + in_pos.y + in_pos.z + modelUbo.rnd));
 
-	worldPos.xyz += rnd_mul * worldNrm * staticUbo.outlineSize;
+	float distance = distance((inverse(frameUbo.view) * vec4(0,0,0,1)).xyz, worldPos.xyz);
+	worldPos.xyz += rnd_mul * worldNrm * staticUbo.outlineSize * distance;
 
 	vec4 viewPos = frameUbo.view * worldPos;
+
 	vec3 viewNrm = mat3(frameUbo.view) * worldNrm;
 	vec4 projPos = staticUbo.proj * viewPos;
 
