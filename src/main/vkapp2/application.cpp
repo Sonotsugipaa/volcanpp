@@ -74,6 +74,7 @@ namespace {
 		r.samplerAnisotropy = true;
 		r.fillModeNonSolid = true;
 		r.wideLines = true;
+		r.sampleRateShading = true;
 		return r;
 	} ());
 
@@ -424,7 +425,7 @@ int main(int, char**) {
 	#endif
 		util::log.setLevel(util::LOG_DEBUG, DO_DEBUG);
 		util::log.setLevel(util::LOG_VK_DEBUG, DO_DEBUG);
-		util::log.setLevel(util::LOG_ALLOC, DO_DEBUG);
+		// util::log.setLevel(util::LOG_ALLOC, DO_DEBUG);
 	#undef DO_DEBUG
 	util::log.setLevel(util::LOG_GENERAL, true);
 	util::log.setLevel(util::LOG_ERROR, true);

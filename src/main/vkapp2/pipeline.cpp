@@ -190,6 +190,7 @@ namespace vka2 {
 			rscInfo.polygonMode = vk::PolygonMode::eFill;
 
 			vk::PipelineMultisampleStateCreateInfo msscInfo;
+			msscInfo.sampleShadingEnable = true;
 			msscInfo.rasterizationSamples = sampleCount;
 			msscInfo.minSampleShading = 1.0f;
 
