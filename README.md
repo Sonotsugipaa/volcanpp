@@ -77,8 +77,8 @@ prof=release rm-mk-run # The "rm-" prefix can be omitted for unclean builds
 
 Alternatively, `build.sh` can be run with "`release`" or "`debug`" as the first
 argument, in order to build the application; it can then be run by using
-`release/main/launch.sh` (or `debug/...`), which will automatically set the
+`release/launch.sh` (or `debug/...`), which will automatically set the
 required environment variables and its current working directory.
 
 The application will fail to run if its assets are missing; they have to be
-manually provided, as documented in `src/main/assets/`.
+manually provided, as documented in `src/assets/`.

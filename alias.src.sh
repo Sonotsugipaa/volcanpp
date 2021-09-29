@@ -4,31 +4,25 @@ function mk {
 	clear && ./build.sh $prof; }
 
 function mk-run {
-	clear && ./build.sh $prof && (cd $prof/main && ./launch.sh); }
-
-function mk-test {
-	clear && ./build.sh $prof && (cd $prof/test && ./run-tests.sh); }
+	clear && ./build.sh $prof && (cd $prof && ./launch.sh); }
 
 function mk-grind {
-	clear && ./build.sh $prof && (cd $prof/main && ./launch.sh -d); }
+	clear && ./build.sh $prof && (cd $prof && ./launch.sh -d); }
 
 function mk-grindleaks {
-	clear && ./build.sh $prof && (cd $prof/main && ./launch.sh -l); }
+	clear && ./build.sh $prof && (cd $prof && ./launch.sh -l); }
 
 function rm-mk {
 	clear && ./build.sh -r $prof; }
 
 function rm-mk-run {
-	clear && ./build.sh -r $prof && (cd $prof/main && ./launch.sh); }
-
-function rm-mk-test {
-	clear && ./build.sh -r $prof && (cd $prof/test && ./run-tests.sh); }
+	clear && ./build.sh -r $prof && (cd $prof && ./launch.sh); }
 
 function rm-mk-grind {
-	clear && ./build.sh -r $prof && (cd $prof/main && ./launch.sh -d); }
+	clear && ./build.sh -r $prof && (cd $prof && ./launch.sh -d); }
 
 function rm-mk-grindleaks {
-	clear && ./build.sh -r $prof && (cd $prof/main && ./launch.sh -l); }
+	clear && ./build.sh -r $prof && (cd $prof && ./launch.sh -l); }
 
 
 function git-tarxz {

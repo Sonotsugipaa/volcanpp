@@ -14,8 +14,6 @@
 - Make the RenderPass <=> Pipeline co-dependency co-nsistent
 - Add mouse camera rotation
 - Simplify RenderPass::runRenderPass
-- Try and remove some redundant main/outline vertex shader computations,
-  possibly with some Vulkan pipeline mechanism I don't know yet
 - Implement dynamic model LOD
 - Add outline color to the push constant
 - Port to Visual Studio, if possible at all
@@ -26,15 +24,10 @@
     RGB-to-RGBA blit procedure
     - Should this task be discarded, the relevant functions should be
       removed from `graphics.hpp`
-- Use an environmental variable to locate `params.cfg` and `scene.cfg`
-  - `params.cfg` should be searched for in the current working directory
-    by default, lest it doesn't serve its purpose of defining default
-    locations for assets and shaders
 
 ## Bug fixes
 
 - Fix model loading causing a segfault if a model cache is not provided
-- Investigate memory leaks
 - Investigate why createSwapchainKHR fails with error "ErrorUnknown"
   - Happens when the swapchain is cached while recreating it, also
     depending on the implementation of Pipeline::waitIdle
