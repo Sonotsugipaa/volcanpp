@@ -45,10 +45,9 @@ namespace vka2 {
 
 		struct Material {
 			std::string name = "";
-			float minDiffuse = 0.0f;
-			float maxDiffuse = 0.7f;
-			float minSpecular = 0.0f;
-			float maxSpecular = 0.3f;
+			float ambient = 0.0f;
+			float diffuse = 0.7f;
+			float specular = 0.3f;
 			float shininess = 16.0f;
 			uint_least16_t celLevels = 6;
 			bool mergeVertices:1 = false;

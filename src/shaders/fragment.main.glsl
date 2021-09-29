@@ -35,13 +35,12 @@ layout(set = 0, binding = 0) uniform StaticUbo {
 } staticUbo;
 
 layout(set = 1, binding = 0) uniform ModelUbo {
-	float minDiffuse;
-	float maxDiffuse;
-	float minSpecular;
-	float maxSpecular;
+	float ambient;
+	float diffuse;
+	float specular;
 	float shininess;
-	uint celLevels;
 	float rnd;
+	uint celLevels;
 } modelUbo;
 
 layout(set = 2, binding = 0) uniform FrameUbo {
@@ -135,10 +134,10 @@ vec3 clampColor(vec3 colRgb) {
 
 
 float rayDiffusion(vec3 lightDirTan, vec3 nrmTan) {
-	float r = modelUbo.minDiffuse;
+	float r;
 	r = dot(-lightDirTan, nrmTan);
 	r = max(0, r);
-	r = unnormalize(modelUbo.minDiffuse, modelUbo.maxDiffuse, r);
+	r = unnormalize(modelUbo.ambient, modelUbo.diffuse, r);
 	r = max(0, r);
 	return r;
 }
@@ -149,13 +148,13 @@ float pointDiffusion(PointLightInfo pli, vec3 nrmTan, float intensity) {
 
 
 float raySpecular(vec3 lightDirTan, vec3 nrmTan) {
-	float r = modelUbo.minSpecular;
 	vec3 viewDir = frg_tbnInverse * normalize(frameUbo.viewPos - frg_worldPos);
 	vec3 reflectDir = reflect(-lightDirTan, nrmTan);
+	float r;
 	r = dot(-viewDir, reflectDir);
 	r = max(0, r);
 	r = pow(r, modelUbo.shininess);
-	r = unnormalize(modelUbo.minSpecular, modelUbo.maxSpecular, r);
+	r = r * modelUbo.specular;
 	r = max(0, r);
 	return r;
 }

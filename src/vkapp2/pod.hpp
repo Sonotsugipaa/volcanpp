@@ -152,13 +152,12 @@ namespace vka2 {
 			static constexpr bool dma = true;
 			static constexpr unsigned set = 1;
 			static constexpr unsigned binding = 0;
-			SPIRV_ALIGNED(float)      minDiffuse;
-			SPIRV_ALIGNED(float)      maxDiffuse;
-			SPIRV_ALIGNED(float)      minSpecular;
-			SPIRV_ALIGNED(float)      maxSpecular;
+			SPIRV_ALIGNED(float)      ambient;
+			SPIRV_ALIGNED(float)      diffuse;
+			SPIRV_ALIGNED(float)      specular;
 			SPIRV_ALIGNED(float)      shininess;
-			SPIRV_ALIGNED(unsigned)   celLevels;
 			SPIRV_ALIGNED(float)      rnd; // Different for every model
+			SPIRV_ALIGNED(unsigned)   celLevels;
 		};
 
 		/* The frame Uniform Buffer Object, as the name implies, is updated

@@ -39,6 +39,7 @@ namespace vka2 {
 		Scene r;
 		Config cfg;
 		cfg.readFile(cfgPath.c_str());
+		auto& cfgRoot = cfg.getRoot();
 		{
 			#define GET_VALUE(_N, _T) if(elem.exists(#_N)) obj._N = elem[#_N].operator _T();
 			#define GET_ARRAY(_N) if(elem.exists(#_N)) std::copy( \
@@ -46,7 +47,7 @@ namespace vka2 {
 				elem[#_N].begin() + std::min<int>(obj._N.size(), elem[#_N].end() - elem[#_N].begin()), \
 				obj._N.begin());
 			// --
-			auto& objs = cfg.getRoot()["objects"];
+			auto& objs = cfgRoot["objects"];
 			for(auto& elem : objs) {
 				Object obj;
 				GET_VALUE(meshName, std::string)
@@ -66,14 +67,13 @@ namespace vka2 {
 				elem[#_N].begin() + std::min<int>(mtl._N.size(), elem[#_N].end() - elem[#_N].begin()), \
 				mtl._N.begin());
 			// --
-			auto& mtls = cfg.getRoot()["materials"];
+			auto& mtls = cfgRoot["materials"];
 			for(auto& elem : mtls) {
 				Material mtl;
 				GET_VALUE(name,          std::string)
-				GET_VALUE(minDiffuse,    float)
-				GET_VALUE(maxDiffuse,    float)
-				GET_VALUE(minSpecular,   float)
-				GET_VALUE(maxSpecular,   float)
+				GET_VALUE(ambient,       float)
+				GET_VALUE(diffuse,       float)
+				GET_VALUE(specular,      float)
 				GET_VALUE(shininess,     float)
 				GET_VALUE(celLevels,     unsigned)
 				GET_VALUE(mergeVertices, bool)
@@ -82,12 +82,14 @@ namespace vka2 {
 			#undef GET_VALUE
 			#undef GET_ARRAY
 		} {
-			auto& pointLightElem = cfg.getRoot()["pointLight"];
-			r.pointLight = { 0.0f, 0.0f, 0.0f, 1.0f };
-			std::copy(
-				pointLightElem.begin(),
-				pointLightElem.begin() + std::min<int>(r.pointLight.size(), pointLightElem.end() - pointLightElem.begin()),
-				r.pointLight.begin());
+			if(cfgRoot.exists("pointLight")) {
+				auto& pointLightElem = cfgRoot["pointLight"];
+				r.pointLight = { 0.0f, 0.0f, 0.0f, 1.0f };
+				std::copy(
+					pointLightElem.begin(),
+					pointLightElem.begin() + std::min<int>(r.pointLight.size(), pointLightElem.end() - pointLightElem.begin()),
+					r.pointLight.begin());
+			}
 		}
 		return r;
 	}

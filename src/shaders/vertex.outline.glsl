@@ -35,13 +35,12 @@ layout(set = 0, binding = 0) uniform StaticUbo {
 } staticUbo;
 
 layout(set = 1, binding = 0) uniform ModelUbo {
-	float minDiffuse;
-	float maxDiffuse;
-	float minSpecular;
-	float maxSpecular;
+	float ambient;
+	float diffuse;
+	float specular;
 	float shininess;
-	uint celLevels;
 	float rnd;
+	uint celLevels;
 } modelUbo;
 
 layout(set = 2, binding = 0) uniform FrameUbo {

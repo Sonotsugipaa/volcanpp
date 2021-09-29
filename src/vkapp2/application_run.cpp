@@ -700,8 +700,8 @@ namespace {
 		} { // Make name -> material associations
 			for(auto& mtlInfo : scene.materials) {
 				util::logDebug() << "Material \"" << mtlInfo.name
-					<< "\", (" << mtlInfo.minDiffuse << ", " << mtlInfo.maxDiffuse << "), ("
-					<< mtlInfo.minSpecular << ", " << mtlInfo.maxSpecular << "), ("
+					<< "\", (" << mtlInfo.ambient << ", " << mtlInfo.diffuse << ", "
+					<< mtlInfo.specular << "), ("
 					<< mtlInfo.shininess << ", " << mtlInfo.celLevels << ')' << util::endl;
 				mtlInfoMap[mtlInfo.name] = &mtlInfo;
 			}
@@ -757,13 +757,12 @@ namespace {
 					assert(matInfo != mtlInfoMap.end());
 					newObj->meshWrapper->viewUbo([&dst, &matInfo](MemoryView<ubo::Model> ubo) {
 						*ubo.data = ubo::Model {
-							.minDiffuse = matInfo->second->minDiffuse,
-							.maxDiffuse = matInfo->second->maxDiffuse,
-							.minSpecular = matInfo->second->minSpecular,
-							.maxSpecular = matInfo->second->maxSpecular,
+							.ambient = matInfo->second->ambient,
+							.diffuse = matInfo->second->diffuse,
+							.specular = matInfo->second->specular,
 							.shininess = matInfo->second->shininess,
-							.celLevels = matInfo->second->celLevels,
-							.rnd = dst.rngDistr(dst.rng) };
+							.rnd = dst.rngDistr(dst.rng),
+							.celLevels = matInfo->second->celLevels };
 						return true;
 					});
 				}
@@ -774,13 +773,12 @@ namespace {
 				if(found != dst.meshCache.end()) {
 					found->second->viewUbo([&dst, &matInfo](MemoryView<ubo::Model> ubo) {
 						*ubo.data = ubo::Model {
-							.minDiffuse = matInfo.minDiffuse,
-							.maxDiffuse = matInfo.maxDiffuse,
-							.minSpecular = matInfo.minSpecular,
-							.maxSpecular = matInfo.maxSpecular,
+							.ambient = matInfo.ambient,
+							.diffuse = matInfo.diffuse,
+							.specular = matInfo.specular,
 							.shininess = matInfo.shininess,
-							.celLevels = matInfo.celLevels,
-							.rnd = dst.rngDistr(dst.rng) };
+							.rnd = dst.rngDistr(dst.rng),
+							.celLevels = matInfo.celLevels };
 						return true;
 					});
 				}
