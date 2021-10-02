@@ -298,33 +298,38 @@ namespace {
 	 * sets. */
 	class MeshWrapper {
 		MeshInstance::ShPtr _mdl;
-		vk::DescriptorPool _dPool;
-		vk::DescriptorSet _dSet;
+		DynDescriptorPool* _dPool;
+		DynDescriptorPool::SetHandle _dSetPtr;
 	public:
 		MeshWrapper(): _mdl() { }
 
-		MeshWrapper(MeshInstance::ShPtr mdl, vk::DescriptorPool dPool, vk::DescriptorSetLayout dSetLayout):
-				_mdl(std::move(mdl))
+		MeshWrapper(MeshInstance::ShPtr mdl, DynDescriptorPool& dPool):
+				_mdl(std::move(mdl)),
+				_dPool(&dPool)
 		{
-			recreateDescSet(dPool, dSetLayout);
+			assert(_dPool != nullptr);
+			_dSetPtr = _dPool->request();
 		}
 
 		MeshWrapper(MeshWrapper&& mov):
 				_mdl(std::move(mov._mdl)),
 				_dPool(std::move(mov._dPool)),
-				_dSet(std::move(mov._dSet))
-		{ }
-
-
-		vk::DescriptorSet descSet() const { return _dSet; }
-
-		void recreateDescSet(
-				vk::DescriptorPool dPool,
-				vk::DescriptorSetLayout dSetLayout
-		) {
-			_dPool = dPool;
-			_dSet = _mdl->makeDescriptorSets(_dPool, dSetLayout, 1).front();
+				_dSetPtr(std::move(mov._dSetPtr))
+		{
+			mov._dPool = nullptr;
 		}
+
+		~MeshWrapper() {
+			if(_dPool != nullptr) {
+				if(_dPool) {
+					_dPool->release(_dSetPtr);
+				}
+				_dPool = nullptr;
+			}
+		}
+
+
+		vk::DescriptorSet descSet() const { return _dSetPtr.get(*_dPool); }
 
 
 		MeshInstance::ShPtr operator*() { return _mdl; }
@@ -353,6 +358,7 @@ namespace {
 		Keymap keymap;
 		RenderPass rpass;
 		Pipeline mainPipeline, outlinePipeline;
+		DynDescriptorPool dPool;
 		MeshInstance::TextureCache textureCache;
 		MeshInstance::MeshCache meshCache;
 		struct Shaders {
@@ -369,6 +375,7 @@ namespace {
 		glm::vec2 orientation;
 		unsigned frameCounter;
 		float turnSpeedKey, turnSpeedKeyMod, moveSpeed, moveSpeedMod;
+		bool dPoolOutOfDate;
 	};
 
 
@@ -618,10 +625,6 @@ namespace {
 					app->swapchain().data.extent));
 				buildPipelines();
 				set_static_ubo(rpass, app->options());
-				for(Object& obj : (*dstObjects)) {
-					obj.meshWrapper.recreateDescSet(
-						rpass.descriptorPool(), rpass.descriptorSetLayouts()[ubo::Model::set]);
-				}
 			};
 
 			dst.rpass = RenderPass(app.swapchain(),
@@ -636,18 +639,21 @@ namespace {
 				.keymap = &dst.keymap, .app = &app,
 				.ctrlCtx = &dst.ctrlCtx, .frameTiming = &dst.frameTiming };
 
+			dst.dPool = dst.rpass.createInstanceDescriptorPool();
+			dst.dPool.setSize(dst.objects.size()); // The size should be 0 on the first call
+			for(auto& obj : dst.objects) {
+				obj.meshWrapper->updateDescriptorSet(obj.meshWrapper.descSet());
+			}
+			dst.dPoolOutOfDate = true;
+
 			set_user_controls(dst, app.glfwWindow());
 			set_static_ubo(dst.rpass, opts);
-
-			for(Object& obj : dst.objects) {
-				obj.meshWrapper.recreateDescSet(
-					dst.rpass.descriptorPool(), dst.rpass.descriptorSetLayouts()[ubo::Model::set]);
-			}
 		}
 	}
 
 
 	void destroy_render_ctx_rpass(RenderContext& ctx) {
+		ctx.dPool = nullptr;
 		ctx.outlinePipeline.destroy();
 		ctx.mainPipeline.destroy();
 		ctx.rpass.destroy();
@@ -687,8 +693,7 @@ namespace {
 			dst.objects.push_back(std::move(Object {
 				.meshWrapper = MeshWrapper(
 					MeshInstance::fromObj(app, src, found->mergeVertices, &dst.meshCache, &dst.textureCache),
-					dst.rpass.descriptorPool(),
-					dst.rpass.descriptorSetLayouts()[ubo::Model::set]
+					dst.dPool
 				),
 				.position = glm::vec3(objInfo.position[0], objInfo.position[1], objInfo.position[2]),
 				.orientation = glm::vec3(objInfo.orientation[0], objInfo.orientation[1], objInfo.orientation[2]),
@@ -701,7 +706,32 @@ namespace {
 	}
 
 
-	void load_ctx_assets(Application& app, RenderContext& dst) {
+	void create_render_ctx(
+			Application& app,
+			RenderContext& dst, const Options& opts
+	) {
+		init_render_ctx_pod(app, dst);
+		read_ctx_shaders(app, dst);
+		create_render_ctx_rpass(app, dst, opts);
+	}
+
+
+	void destroy_render_ctx(RenderContext& ctx) {
+		destroy_render_ctx_rpass(ctx);
+	}
+
+
+	void sync_desc_sets(RenderContext& ctx) {
+		if(ctx.dPoolOutOfDate) {
+			for(auto& obj : ctx.objects) {
+				obj.meshWrapper->updateDescriptorSet(obj.meshWrapper.descSet());
+			}
+			ctx.dPoolOutOfDate = false;
+		}
+	}
+
+
+	void load_assets(Application& app, RenderContext& dst) {
 		static_assert(ubo::Model::set == Texture::samplerDescriptorSet);
 		std::map<std::string, Scene::Material*> mtlInfoMap;
 		std::string assetPath = get_asset_path();
@@ -802,22 +832,6 @@ namespace {
 	}
 
 
-	void create_render_ctx(
-			Application& app,
-			RenderContext& dst, const Options& opts
-	) {
-		init_render_ctx_pod(app, dst);
-		read_ctx_shaders(app, dst);
-		create_render_ctx_rpass(app, dst, opts);
-		load_ctx_assets(app, dst);
-	}
-
-
-	void destroy_render_ctx(RenderContext& ctx) {
-		destroy_render_ctx_rpass(ctx);
-	}
-
-
 	void create_object(RenderContext& ctx) {
 		auto floatRnd = [&ctx]() {
 			constexpr unsigned mod = std::numeric_limits<unsigned>::max();
@@ -827,9 +841,7 @@ namespace {
 			return ctx.objects[ctx.rng() % ctx.objects.size()];
 		} ();
 		ctx.objects.push_back(Object {
-			.meshWrapper = MeshWrapper(*clonee.meshWrapper,
-				ctx.rpass.descriptorPool(),
-				ctx.rpass.descriptorSetLayouts()[ubo::Model::set] ),
+			.meshWrapper = MeshWrapper(*clonee.meshWrapper, ctx.dPool),
 			.position = glm::vec3(
 				clonee.position.x + (floatRnd() * 4.0f),
 				clonee.position.y + (floatRnd() * 4.0f),
@@ -842,6 +854,7 @@ namespace {
 			.color = clonee.color,
 			.rnd = floatRnd()
 		});
+		ctx.dPoolOutOfDate = true;
 	}
 
 
@@ -963,6 +976,7 @@ namespace vka2 {
 		RenderContext ctx = { };
 		std::vector<push_const::Object> objPushConsts;
 		create_render_ctx(*this, ctx, opts);
+		load_assets(*this, ctx);
 		util::TimeGateNs timer;
 		double sleepTime = ctx.frameTiming.frameTime / SLEEPS_PER_FRAME;
 		{
@@ -983,6 +997,7 @@ namespace vka2 {
 					mk_frame_ubo(ctx, orientationMat, frameUbo);
 					mk_instances(ctx.rpass, ctx.objects, ctx.instances);
 					ctx.instances.flush();
+					sync_desc_sets(ctx);
 					auto draw = [&ctx](
 							RenderPass::FrameHandle& fh, vk::CommandBuffer cmd,
 							const Object& obj, uint32_t instanceIdx

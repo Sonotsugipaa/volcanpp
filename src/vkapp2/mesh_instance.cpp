@@ -354,41 +354,25 @@ namespace vka2 {
 	}
 
 
-	std::vector<vk::DescriptorSet> MeshInstance::makeDescriptorSets(
-			vk::DescriptorPool dPool,
-			vk::DescriptorSetLayout layout,
-			unsigned count
+	void MeshInstance::updateDescriptorSet(
+			vk::DescriptorSet set
 	) {
-		assert(dPool != vk::DescriptorPool());
-		assert(layout != vk::DescriptorSetLayout());
-		if(count == 0)  return { };
-		std::vector<vk::DescriptorSet> r;
-		{ // Create the descriptor sets
-			vk::DescriptorSetAllocateInfo dsaInfo;
-			auto layoutCopies = std::vector<vk::DescriptorSetLayout>(count);
-			for(unsigned i=0; i < count; ++i) {
-				layoutCopies[i] = layout; }
-			dsaInfo.descriptorPool = dPool;
-			dsaInfo.setSetLayouts(layoutCopies);
-			r = _app->device().allocateDescriptorSets(dsaInfo);
-		} { // Update the UBO buffer descriptors
+		vk::WriteDescriptorSet wdSet;
+		wdSet.descriptorCount = 1;
+		wdSet.dstSet = set;
+		wdSet.dstBinding = ubo::Model::binding;
+		{ // Update the UBO buffer descriptors
 			vk::DescriptorBufferInfo dbInfo;
-			auto wdSets = std::vector<vk::WriteDescriptorSet>(r.size());
 			dbInfo.buffer = _ubo.handle;
 			dbInfo.range = sizeof(ubo::Model);
-			for(unsigned i=0; auto& wdSet : wdSets) {
-				wdSet.setBufferInfo(dbInfo);
-				wdSet.dstBinding = ubo::Model::binding;
-				wdSet.descriptorType = vk::DescriptorType::eUniformBuffer;
-				wdSet.descriptorCount = 1;
-				wdSet.dstSet = r[i++];
-			}
-			_app->device().updateDescriptorSets(wdSets, { });
+			wdSet.descriptorType = vk::DescriptorType::eUniformBuffer;
+			wdSet.setBufferInfo(dbInfo);
+			_app->device().updateDescriptorSets(wdSet, { });
 		} { // Update the texture sampler descriptors
 			vk::DescriptorImageInfo diDfsInfo;
 			vk::DescriptorImageInfo diSpcInfo;
 			vk::DescriptorImageInfo diNrmInfo;
-			auto wdSets = std::vector<vk::WriteDescriptorSet>(r.size());
+			wdSet.descriptorType = vk::DescriptorType::eCombinedImageSampler;
 			diDfsInfo.imageLayout = diSpcInfo.imageLayout = diNrmInfo.imageLayout =
 				vk::ImageLayout::eShaderReadOnlyOptimal;
 			diDfsInfo.imageView = _mat->diffuseTexture.imgView();
@@ -398,31 +382,19 @@ namespace vka2 {
 			diNrmInfo.imageView = _mat->normalTexture.imgView();
 			diNrmInfo.sampler = _mat->normalTexture.sampler();
 			{ // Diffuse texture
-				for(unsigned i=0; auto& wdSet : wdSets) {
-					wdSet.setImageInfo(diDfsInfo);
-					wdSet.dstBinding = Texture::samplerDescriptorBindings[0];
-					wdSet.descriptorType = vk::DescriptorType::eCombinedImageSampler;
-					wdSet.descriptorCount = 1;
-					wdSet.dstSet = r[i++];
-				}
-				_app->device().updateDescriptorSets(wdSets, { });
+				wdSet.setImageInfo(diDfsInfo);
+				wdSet.dstBinding = Texture::samplerDescriptorBindings[0];
+				_app->device().updateDescriptorSets(wdSet, { });
 			} { // Specular texture
-				for(unsigned i=0; auto& wdSet : wdSets) {
-					wdSet.setImageInfo(diSpcInfo);
-					wdSet.dstBinding = Texture::samplerDescriptorBindings[1];
-					wdSet.dstSet = r[i++];
-				}
-				_app->device().updateDescriptorSets(wdSets, { });
+				wdSet.setImageInfo(diSpcInfo);
+				wdSet.dstBinding = Texture::samplerDescriptorBindings[1];
+				_app->device().updateDescriptorSets(wdSet, { });
 			} { // Normal texture
-				for(unsigned i=0; auto& wdSet : wdSets) {
-					wdSet.setImageInfo(diNrmInfo);
-					wdSet.dstBinding = Texture::samplerDescriptorBindings[2];
-					wdSet.dstSet = r[i++];
-				}
-				_app->device().updateDescriptorSets(wdSets, { });
+				wdSet.setImageInfo(diNrmInfo);
+				wdSet.dstBinding = Texture::samplerDescriptorBindings[2];
+				_app->device().updateDescriptorSets(wdSet, { });
 			}
 		}
-		return r;
 	}
 
 

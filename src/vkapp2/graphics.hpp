@@ -33,6 +33,8 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include <vkapp2/dyndescriptorpool.hpp>
+
 #include <vulkan/vulkan.hpp>
 #include <vma/vk_mem_alloc.h>
 
@@ -211,9 +213,8 @@ namespace vka2 {
 
 		inline const TextureSet& textureSet() const { return *_mat.get(); }
 
-		/** Convenience function to allocate one or more descriptor sets, then */
-		std::vector<vk::DescriptorSet> makeDescriptorSets(
-			vk::DescriptorPool, vk::DescriptorSetLayout, unsigned count = 1);
+		/** Updates the mesh's descriptor set. */
+		void updateDescriptorSet(vk::DescriptorSet);
 
 		/** Maps the model's vertices and indices to a range of addresses, then runs the
 		 * given function.
@@ -410,7 +411,7 @@ namespace vka2 {
 			BufferAlloc staticUboBase; // Copy-on-read behavior for ImageData, only when needed
 			unsigned long staticUboBaseWrCounter; // ++ on every staticUboBase write; ImageData should get a copy when its counter doesn't match.
 			std::vector<FrameData> frames;
-			vk::DescriptorPool descPool;
+			vk::DescriptorPool staticDescPool;
 			ImageAlloc depthStencilImg;
 			vk::ImageView depthStencilImgView;
 			bool useMultisampling;
@@ -449,13 +450,15 @@ namespace vka2 {
 		GETTER_REF      (_data.swpchnImages,   swapchainImages     )
 		GETTER_PTR      (_swapchain,           swapchain           )
 		GETTER_VAL_CONST(_data.handle,         handle              )
-		GETTER_REF      (_data.descPool,       descriptorPool      )
+		GETTER_REF      (_data.staticDescPool, staticDescriptorPool)
 		GETTER_REF      (_data.pipelineLayout, pipelineLayout      )
 		GETTER_REF      (_data.descsetLayouts, descriptorSetLayouts)
 		GETTER_REF_CONST(_data.renderExtent,   renderExtent        )
 
 		void reassign(AbstractSwapchain&);
 		void reassign(AbstractSwapchain&, const vk::Extent2D& renderExtent);
+
+		DynDescriptorPool createInstanceDescriptorPool();
 
 		void waitIdle(uint64_t timeoutNs = UINT64_MAX);
 

@@ -259,22 +259,19 @@ namespace {
 	}
 
 
-	vk::DescriptorPool mk_desc_pool(
+	vk::DescriptorPool mk_static_desc_pool(
 			vk::Device dev, unsigned swpChnImgCount
 	) {
 		// One "size" element represents how many descriptors of type X *across all sets* can be created
-		auto sizes = std::array<vk::DescriptorPoolSize, 2> {
-			vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, (2 * swpChnImgCount) + MAX_OBJECT_COUNT),
-			vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 3 * MAX_OBJECT_COUNT)
+		auto sizes = std::array<vk::DescriptorPoolSize, 1> {
+			vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, 2 * swpChnImgCount)
 		};
 		vk::DescriptorPoolCreateInfo dpcInfo;
-		dpcInfo.flags = vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind;
 		dpcInfo.setPoolSizes(sizes);
-		dpcInfo.maxSets = (2 * swpChnImgCount) + MAX_OBJECT_COUNT;
+		dpcInfo.maxSets = 2 * swpChnImgCount;
 		util::logVkDebug()
-			<< "Creating descriptor pool with max." << dpcInfo.maxSets
-			<< " descriptor sets for "
-			<< sizes[0].descriptorCount << '+' << sizes[1].descriptorCount
+			<< "Creating static descriptor pool with max." << dpcInfo.maxSets
+			<< " descriptor sets for " << sizes[0].descriptorCount
 			<< " bindings" << util::endl;
 		return dev.createDescriptorPool(dpcInfo);
 	}
@@ -373,8 +370,8 @@ namespace {
 
 
 		RenderPass::ImageData mk_data(
-				AbstractSwapchain& asc,
-				vk::RenderPass rpass, vk::DescriptorPool dsPool,
+				AbstractSwapchain& asc, vk::RenderPass rpass,
+				vk::DescriptorPool staticDsPool,
 				std::vector<vk::DescriptorSetLayout> dsLayouts,
 				vk::Extent2D renderExtent, vk::ImageView depthStencilImgView,
 				unsigned graphicsQueueFamily, bool useMultisampling
@@ -453,11 +450,11 @@ namespace {
 				assert(cmdBufferVector.size() == r.cmdBuffers.size());
 				std::move(cmdBufferVector.begin(), cmdBufferVector.end(), r.cmdBuffers.begin());
 			} { // Create the descriptor sets
-				auto mkDescSet = [dsPool, dev](
+				auto mkDescSet = [staticDsPool, dev](
 						vk::DescriptorSetLayout layout
 				) {
 					vk::DescriptorSetAllocateInfo dsaInfo;
-					dsaInfo.descriptorPool = dsPool;
+					dsaInfo.descriptorPool = staticDsPool;
 					dsaInfo.descriptorSetCount = 1;
 					dsaInfo.setSetLayouts(layout);
 					return dev.allocateDescriptorSets(dsaInfo).front();
@@ -625,10 +622,11 @@ namespace vka2 {
 			asc.application->surfaceFormat().format,
 			asc.application->runtime().depthOptimalFmt, vk::ImageLayout::eTransferSrcOptimal,
 			asc.application->runtime().bestSampleCount, false);  util::alloc_tracker.alloc("RenderPass:_data:handle");
-		_data.descPool = mk_desc_pool(dev, imgs.size());  util::alloc_tracker.alloc("RenderPass:_data:descPool");
+		_data.staticDescPool = mk_static_desc_pool(dev, imgs.size());  util::alloc_tracker.alloc("RenderPass:_data:staticDescPool");
 		for(auto img : imgs) {
 			_data.swpchnImages.emplace_back(img, imgref::mk_data(
-				asc, _data.handle, _data.descPool, _data.descsetLayouts,
+				asc, _data.handle,
+				_data.staticDescPool, _data.descsetLayouts,
 				_data.renderExtent, _data.depthStencilImgView,
 				asc.application->queueFamilyIndices().graphics,
 				_data.useMultisampling));
@@ -639,7 +637,7 @@ namespace vka2 {
 	void RenderPass::_unassign() {
 		auto dev = _swapchain->application->device();
 		dev.waitIdle();
-		dev.destroyDescriptorPool(_data.descPool);  util::alloc_tracker.dealloc("RenderPass:_data:descPool");
+		dev.destroyDescriptorPool(_data.staticDescPool);  util::alloc_tracker.dealloc("RenderPass:_data:staticDescPool");
 		_swapchain->application->device().destroyRenderPass(_data.handle);  util::alloc_tracker.dealloc("RenderPass:_data:handle");
 		for(auto& img : _data.swpchnImages) {
 			imgref::destroy_data(*_swapchain, img.second); }  util::alloc_tracker.dealloc("RenderPass:_data:swpchnImages[...]", _data.swpchnImages.size());
@@ -706,6 +704,48 @@ namespace vka2 {
 		_unassign();
 		_data.renderExtent = rExtent;
 		_assign(asc);
+	}
+
+
+	DynDescriptorPool RenderPass::createInstanceDescriptorPool() {
+		auto modelDescSetLayout = _data.descsetLayouts[ubo::Model::set];
+		Application* app = _swapchain->application;
+
+		DynDescriptorPool::PoolConstructor constructor = [app](size_t sets) {
+			auto sizes = std::array<vk::DescriptorPoolSize, 2> {
+				vk::DescriptorPoolSize(vk::DescriptorType::eUniformBuffer, sets),
+				vk::DescriptorPoolSize(vk::DescriptorType::eCombinedImageSampler, 3 * sets)
+			};
+			vk::DescriptorPoolCreateInfo dpcInfo;
+			dpcInfo.flags = vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind;
+			dpcInfo.setPoolSizes(sizes);
+			dpcInfo.maxSets = sets;
+			util::logVkDebug()
+				<< "Creating instance descriptor pool with max." << dpcInfo.maxSets
+				<< " descriptor sets for "
+				<< sizes[0].descriptorCount << '+' << sizes[1].descriptorCount
+				<< " bindings" << util::endl;
+			return app->device().createDescriptorPool(dpcInfo);
+		};
+
+		DynDescriptorPool::PoolDestructor destructor = [app](vk::DescriptorPool pool) {
+			app->queues().graphics.waitIdle();
+			app->device().destroyDescriptorPool(pool);
+		};
+
+		DynDescriptorPool::SetAllocator allocator = [app, modelDescSetLayout](vk::DescriptorPool pool, size_t sets) {
+			vk::DescriptorSetAllocateInfo dsaInfo = { };
+			std::vector<vk::DescriptorSetLayout> layoutCopies;
+			layoutCopies.resize(sets, modelDescSetLayout);
+			dsaInfo.descriptorPool = pool;
+			dsaInfo.descriptorSetCount = sets;
+			dsaInfo.setSetLayouts(layoutCopies);
+			return app->device().allocateDescriptorSets(dsaInfo);
+		};
+
+		return DynDescriptorPool(
+			app->device(),
+			std::move(constructor), std::move(destructor), std::move(allocator));
 	}
 
 
