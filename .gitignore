@@ -16,11 +16,11 @@ bin/
 
 # params.cfg is created at runtime if it doesn't exist, but
 # a local default can be handy for quick testing/debugging
-src/main/params.cfg
+src/params.cfg
 
 # Assets are to be stored separatedly from the repository
-src/main/assets/*
-!src/main/assets/CMakeLists.txt
+src/assets/*
+!src/assets/CMakeLists.txt
 
 # Various directories contain .doc.md files for documentation
 !**/*.doc.md
