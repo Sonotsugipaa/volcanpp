@@ -56,6 +56,8 @@ namespace {
 		vk::MemoryPropertyFlags vmaRequiredFlags;
 		vk::MemoryPropertyFlags vmaPreferredFlags;
 		VmaMemoryUsage vmaMemoryUsage;
+		vk::PipelineStageFlags firstStage;
+		vk::AccessFlags firstAccess;
 	};
 
 
@@ -220,18 +222,29 @@ namespace {
 			assert(end <= dataSize_);
 			assert(beg <= end);
 			if(beg < end) {
-				vk::BufferCopy cp;
-				auto& cmdPool = app_->transferCommandPool();
-				cp.srcOffset = cp.dstOffset = beg * sizeof(T);
-				cp.setSize((end - beg) * sizeof(T));
+				auto& cmdPool = app_->graphicsCommandPool();
+				auto cmdFn = [this, beg, end](vk::CommandBuffer cmd) {
+					vk::BufferCopy cp;
+					vk::BufferMemoryBarrier mBar = { };
+					cp.srcOffset = cp.dstOffset = beg * sizeof(T);
+					cp.setSize((end - beg) * sizeof(T));
+					mBar.buffer = devDataBuffer_.handle;
+					mBar.size = VK_WHOLE_SIZE;
+					mBar.srcAccessMask = vk::AccessFlagBits::eHostWrite;
+					mBar.dstAccessMask = traits_.firstAccess;
+					mBar.srcQueueFamilyIndex =
+					mBar.dstQueueFamilyIndex = app_->queueFamilyIndices().graphics;
+					cmd.pipelineBarrier(
+						vk::PipelineStageFlagBits::eHost,
+						traits_.firstStage,
+						vk::DependencyFlags(),
+						{ }, mBar, { });
+					cmd.copyBuffer(cpuDataBuffer_.handle, devDataBuffer_.handle, cp);
+				};
 				if(fence) {
-					return cmdPool.runCmdsAsync(app_->queues().transfer, [&](vk::CommandBuffer cmd) {
-						cmd.copyBuffer(cpuDataBuffer_.handle, devDataBuffer_.handle, cp);
-					}, fence);
+					return cmdPool.runCmdsAsync(app_->queues().graphics, cmdFn, fence);
 				} else {
-					cmdPool.runCmds(app_->queues().transfer, [&](vk::CommandBuffer cmd) {
-						cmd.copyBuffer(cpuDataBuffer_.handle, devDataBuffer_.handle, cp);
-					});
+					cmdPool.runCmds(app_->queues().graphics, cmdFn);
 				}
 			}
 			return { };
@@ -516,7 +529,9 @@ namespace {
 		dst.moveSpeedMod = opts.viewParams.viewMoveSpeedMod;
 		dst.instances = DeviceVector<Instance>(app, {
 			vk::BufferUsageFlagBits::eVertexBuffer,
-			{ }, { }, VMA_MEMORY_USAGE_GPU_ONLY });
+			{ }, { }, VMA_MEMORY_USAGE_GPU_ONLY,
+			vk::PipelineStageFlagBits::eVertexInput,
+			vk::AccessFlagBits::eIndexRead });
 		dst.lightDirection = glm::normalize(glm::vec3({
 			opts.worldParams.lightDirection[0],
 			opts.worldParams.lightDirection[1],
