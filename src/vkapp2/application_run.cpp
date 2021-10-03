@@ -984,8 +984,8 @@ namespace vka2 {
 		util::TimeGateNs timer;
 		util::PerfTracker perfTracker;
 		perfTracker.movingAverageDecay =
-		util::perfTracker.movingAverageDecay = ctx.frameTiming.frameTime / 5.0f;
-		double sleepTime = ctx.frameTiming.frameTime / SLEEPS_PER_FRAME;
+		util::perfTracker.movingAverageDecay = ctx.frameTiming.frameTime / 10.0f;
+		double sleepTime = ctx.frameTiming.frameTime / MAX_SLEEPS_PER_FRAME;
 		{
 			{
 				{
@@ -1049,7 +1049,10 @@ namespace vka2 {
 						auto timeMul = decltype(timer)::period_t::den / decltype(timer)::period_t::num;
 						decltype(timer)::precision_t frameTimeUnits = ctx.frameTiming.frameTime * timeMul;
 						while(! timer.forward(frameTimeUnits)) {
-							util::sleep_s(sleepTime); }
+							perfTracker.measure("app.sleepTime", [](decltype(sleepTime) sleepTime) {
+								util::sleep_s(sleepTime);
+							}, sleepTime);
+						}
 					}
 					++ctx.frameCounter;
 					perfTracker.stopTimer(frameTimer);
@@ -1069,6 +1072,7 @@ namespace vka2 {
 			PRINT_TIME_("app.assembleFrameUbo")
 			PRINT_TIME_("app.assembleInstance")
 			PRINT_TIME_("app.assembleInstances")
+			PRINT_TIME_("app.sleepTime")
 			PRINT_TIME_("app.flushInstanceBuffer")
 			PRINT_TIME_("app.userInput")
 			PRINT_TIME_("app.drawCmd")

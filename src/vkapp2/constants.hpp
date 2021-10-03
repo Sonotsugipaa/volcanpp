@@ -56,13 +56,14 @@ namespace vka2 {
 
 		/** The main thread has to sleep for an arbitrary amount of time
 		 * in order to throttle the frame rate: it is computed as
-		 * `frametime / SLEEPS_PER_FRAME`, and it's ideally slightly higher
+		 * `frametime / MAX_SLEEPS_PER_FRAME`, and it's ideally slightly higher
 		 * than an integer number in order to account for non-deterministic
 		 * inaccuracies.
 		 *
 		 * Higher numbers result in more precise frame times, but causes
-		 * the main thread to trigger more context switches. */
-		constexpr float SLEEPS_PER_FRAME = 3.05f;
+		 * the main thread to trigger more context switches: one thread sleep
+		 * has a very approximate overhead of 80 microseconds. */
+		constexpr float MAX_SLEEPS_PER_FRAME = 5.05f;
 
 	}
 
