@@ -23,7 +23,7 @@
 
 add_library(graphics STATIC
 	cmdpool.cpp swapchain.cpp vk_utils.cpp
-	mem.cpp mesh_instance.cpp pipeline.cpp
+	mem.cpp mesh_instance.cpp pipeline.cpp dyndescriptorpool.cpp
 	renderpass.cpp texture.cpp application_run.cpp
 	settings/options.cpp settings/scene.cpp)
 

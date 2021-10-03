@@ -52,9 +52,6 @@ namespace vka2 {
 
 		constexpr float LINE_WIDTH = 1.0f;
 
-		/** Used to allocate a static amount of descriptor bindings. */
-		constexpr unsigned MAX_OBJECT_COUNT = 1024;
-
 		constexpr float YAW_TO_PITCH_RATIO = 2.0f / 3.0f;
 
 		/** The main thread has to sleep for an arbitrary amount of time
