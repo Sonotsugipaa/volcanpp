@@ -82,4 +82,5 @@
 	# since it's meant to be shared with all the ideally
 	# self-contained modules
 	add_library(util STATIC
+		util/perftracker.cpp
 		util/util.cpp)
