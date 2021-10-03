@@ -54,6 +54,19 @@
 	set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 
+# Pass compile options as preprocessor definitions
+
+	#function(pass_opt VAR_NAME)
+	#	if(DEFINED $ENV{$VAR_NAME})
+	#		add_compile_definitions("$VAR_NAME")
+	#	endif()
+	#endfunction(pass_opt)
+
+	#if(DEFINED $ENV{ENABLE_PERF_TRACKER})
+		add_compile_definitions("ENABLE_PERF_TRACKER")
+	#endif()
+
+
 # Add targets
 
 	add_subdirectory(vkapp2)

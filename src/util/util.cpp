@@ -1,6 +1,8 @@
 #include <iostream>
 #include "util.hpp"
 
+#include "perftracker.hpp"
+
 #include <chrono>
 #include <thread>
 #include <string_view>
@@ -35,12 +37,18 @@ namespace {
 			std::chrono::steady_clock::now()).time_since_epoch().count();
 	}
 
+
+	util::PerfTracker perfTrackerInstance;
+
 }
 
 
 
 // Small utility functions
 namespace util {
+
+	util::PerfTracker& perfTracker = perfTrackerInstance;
+
 
 	constexpr size_t FILE_BUFFER_SIZE = 4096;
 

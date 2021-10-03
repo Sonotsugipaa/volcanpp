@@ -1,27 +1,3 @@
-/* MIT License
- *
- * Copyright (c) 2021 Parola Marco
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE. */
-
-
-
 #include "perftracker.hpp"
 
 #include <chrono>
@@ -105,9 +81,16 @@ namespace perf {
 		if(find(records_, state.id, recordsHintIdx_)) {
 			auto& rec = records_[recordsHintIdx_];
 			assert(0 == strcmp(rec.id, state.id));
-			rec.avgTime = (state.time + (rec.avgTime * rec.count)) / (rec.count + 1);
-			rec.count += 1;
+			rec.avgTime =
+				(state.time * movingAverageDecay) +
+				(rec.avgTime * (1.0 - movingAverageDecay));
+			if((rec.count+1) < std::numeric_limits<decltype(rec.count)>::max() / 2) {
+				rec.count += 1;
+			} else {
+				rec.count /= 3;
+			}
 		} else {
+			recordsHintIdx_ = records_.size();
 			records_.push_back(Record{
 				state.id,
 				utime_t(state.time),
@@ -120,9 +103,19 @@ namespace perf {
 	}
 
 
+	void PerfTracker::reset() {
+		records_.clear();
+		recordsHintIdx_ = 0;
+	}
+
+
 	PerfTracker::utime_t PerfTracker::ns(const char* id) const noexcept {
-		bool found = find(records_, id, recordsHintIdx_);
-		assert(found);
+		#ifndef NDEBUG
+			bool found = find(records_, id, recordsHintIdx_);
+			assert(found);
+		#else
+			find(records_, id, recordsHintIdx_);
+		#endif
 		return records_[recordsHintIdx_].avgTime;
 	}
 
@@ -130,29 +123,30 @@ namespace perf {
 	PerfTracker PerfTracker::operator|(const PerfTracker& rh) {
 		const PerfTracker* bigger = this;
 		const PerfTracker* smaller = &rh;
-		PerfTracker r;
 		if(records_.size() < rh.records_.size()) std::swap(bigger, smaller);
-		r = *smaller;
-		for(const auto& rhRecord : rh.records_) {
-			++r.recordsHintIdx_; // Subsequent insertions guarantee cache misses
-			bool found = find(r.records_, rhRecord.id, r.recordsHintIdx_);
-			if(found) {
-				auto& rRecord = r.records_[r.recordsHintIdx_];
-				rRecord.avgTime =
-					(
-						( rRecord.avgTime *  rRecord.count) +
-						(rhRecord.avgTime * rhRecord.count)
-					) / (rRecord.count + rhRecord.count);
-			} else {
-				r.records_.push_back(rhRecord);
-			}
-		}
+		PerfTracker r = *bigger;
+		r |= *smaller;
 		return r;
 	}
 
 
 	PerfTracker& PerfTracker::operator|=(const PerfTracker& rh) {
-		records_.insert(records_.end(), rh.records_.begin(), rh.records_.end());
+		for(const auto& rhRecord : rh.records_) {
+			++recordsHintIdx_; // Subsequent insertions guarantee cache misses
+			bool found = find(records_, rhRecord.id, recordsHintIdx_);
+			if(found) {
+				auto& rRecord = records_[recordsHintIdx_];
+				rRecord.avgTime =
+					(
+						( rRecord.avgTime *  rRecord.count) +
+						(rhRecord.avgTime * rhRecord.count)
+					) / (rRecord.count + rhRecord.count);
+				rRecord.count = 1;
+			} else {
+				records_.push_back(rhRecord);
+				records_.back().count = 1;
+			}
+		}
 		return *this;
 	}
 

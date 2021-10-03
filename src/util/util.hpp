@@ -20,6 +20,11 @@
 
 
 
+namespace perf { class PerfTracker; }
+namespace perf::nop { class PerfTracker; }
+
+
+
 #ifndef NO_UTIL_MACROS
 
 	/* The following macro is a time-saver for creating private fields
@@ -59,6 +64,14 @@ namespace util {
 	StringType enum_str(EnumType);
 
 	#ifndef UTIL_INLINE_ONLY
+
+		#ifdef ENABLE_PERF_TRACKER
+			using perf::PerfTracker;
+		#else
+			using perf::nop::PerfTracker;
+		#endif
+		extern util::PerfTracker& perfTracker;
+
 
 		/** Sleeps for the given amount of time (in seconds),
 		 * then returns how much time passed. */

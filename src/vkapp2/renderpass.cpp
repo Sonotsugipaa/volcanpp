@@ -27,6 +27,8 @@
 #include "vkapp2/draw.hpp"
 #include "vkapp2/constants.hpp"
 
+#include <util/perftracker.hpp>
+
 #include <vma/vk_mem_alloc.h>
 
 using namespace vka2;
@@ -780,6 +782,10 @@ namespace vka2 {
 			PostRenderFunction postRender,
 			std::array<RenderFunction, 2> renderFunctions
 	) {
+		util::PerfTracker perfTracker;
+		perfTracker.movingAverageDecay = util::perfTracker.movingAverageDecay;
+		#define PERF_BEG_(NM_) auto timer_ ## NM_ = perfTracker.startTimer("rpass." #NM_);
+		#define PERF_END_(NM_) perfTracker.stopTimer(timer_ ## NM_);
 		vk::Device dev = _swapchain->application->device();
 		unsigned imgIndex; // Swapchain image
 		auto& frame = _data.frames[_rendering.frame];
@@ -804,6 +810,7 @@ namespace vka2 {
 			return r;
 		};
 		{ // Acquire an image
+			PERF_BEG_(acquireImage)
 			if(_rendering.skipNextFrame) {
 				return _rendering.skipNextFrame = false;
 			}
@@ -815,11 +822,13 @@ namespace vka2 {
 				return false;
 			}
 			img = &_data.swpchnImages[imgIndex];
+			PERF_END_(acquireImage)
 		} { // Run render pass
 			auto renderCmd = img->second.cmdBuffers[0];
 			auto blitCmd = img->second.cmdBuffers[1];
 			auto colorSubresRange = vk::ImageSubresourceRange(
 				vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
+			PERF_BEG_(recordCmd)
 			{ // Begin recording the cmd buffer
 				{ // Wait for the swapchain image to be available first
 					tryWaitForFences(dev, img->second.fenceImgAvailable, true, UINT64_MAX);
@@ -939,7 +948,9 @@ namespace vka2 {
 						vk::DependencyFlagBits(0), { }, { }, imgBarrier);
 				}
 				blitCmd.end();
+				PERF_END_(recordCmd)
 			} { // Submit the cmd buffers
+				PERF_BEG_(submitCmd)
 				std::array<vk::PipelineStageFlags, 1> waitStages =
 					{ vk::PipelineStageFlagBits::eColorAttachmentOutput };
 				auto graphicsQueue = _swapchain->application->queues().graphics;
@@ -947,7 +958,9 @@ namespace vka2 {
 					vk::SubmitInfo(frame.imgAcquiredSem, waitStages, renderCmd, frame.renderDoneSem),
 					vk::SubmitInfo(frame.renderDoneSem, waitStages, blitCmd, frame.blitToSurfaceDoneSem) };
 				graphicsQueue.submit(sInfo, img->second.fenceImgAvailable);
+				PERF_END_(submitCmd)
 			} { // Here's a present!
+				PERF_BEG_(present)
 				vk::PresentInfoKHR pInfo = { };
 				pInfo.setWaitSemaphores(frame.blitToSurfaceDoneSem);
 				pInfo.setSwapchains(_swapchain->handle);
@@ -964,10 +977,14 @@ namespace vka2 {
 					throw std::runtime_error(formatVkErrorMsg(
 						"failed to present a queue", vk::to_string(result)));
 				}
+				PERF_END_(present)
 			}
 		}
 		_rendering.frame = (_rendering.frame + 1) % _data.frames.size();
+		util::perfTracker |= perfTracker;
 		return true;
+		#undef PERF_BEG_
+		#undef PERF_END_
 	}
 
 }

@@ -35,6 +35,8 @@
 #include "vkapp2/settings/options.hpp"
 #include "vkapp2/settings/scene.hpp"
 
+#include <util/perftracker.hpp>
+
 using namespace vka2;
 using namespace std::string_literals;
 
@@ -925,6 +927,7 @@ namespace {
 			dst.resize(&rpass, objects.size());
 		}
 		for(const auto& obj : objects) {
+			auto timer = util::perfTracker.startTimer("app.assembleInstance");
 			Instance& inst = dst[i];
 			inst.modelTransf = glm::mat4(1.0f);
 			inst.modelTransf = glm::translate(inst.modelTransf, obj.position);
@@ -938,6 +941,7 @@ namespace {
 			inst.colorMul = obj.color;
 			inst.rnd = obj.rnd;
 			++i;
+			util::perfTracker.stopTimer(timer);
 		}
 		assert(i == objects.size());
 	}
@@ -978,6 +982,9 @@ namespace vka2 {
 		create_render_ctx(*this, ctx, opts);
 		load_assets(*this, ctx);
 		util::TimeGateNs timer;
+		util::PerfTracker perfTracker;
+		perfTracker.movingAverageDecay =
+		util::perfTracker.movingAverageDecay = ctx.frameTiming.frameTime / 5.0f;
 		double sleepTime = ctx.frameTiming.frameTime / SLEEPS_PER_FRAME;
 		{
 			{
@@ -988,39 +995,54 @@ namespace vka2 {
 					util::logDebug() << "Rendering " << vtxCount << " vertices each frame" << util::endl;
 				}
 				while(! glfwWindowShouldClose(_data.glfwWin)) {
+					auto frameTimer = perfTracker.startTimer("app.frame");
 					mat4 orientationMat = mat4(1.0f);
 					glfwPollEvents();
-					process_input(ctx, orientationMat);
+					perfTracker.measure("app.userInput", [&]() {
+						process_input(ctx, orientationMat);
+					});
 					if(try_change_fullscreen(*this, opts, ctx)) {
 						continue; }
 					ubo::Frame frameUbo;
-					mk_frame_ubo(ctx, orientationMat, frameUbo);
-					mk_instances(ctx.rpass, ctx.objects, ctx.instances);
-					ctx.instances.flush();
+					perfTracker.measure("app.assembleFrameUbo", [&]() {
+						mk_frame_ubo(ctx, orientationMat, frameUbo);
+					});
+					perfTracker.measure("app.assembleInstances", [&]() {
+						mk_instances(ctx.rpass, ctx.objects, ctx.instances);
+					});
+					perfTracker.measure("app.flushInstanceBuffer", [&]() {
+						ctx.instances.flush();
+					});
 					sync_desc_sets(ctx);
-					auto draw = [&ctx](
+					auto draw = [&ctx, &perfTracker](
 							RenderPass::FrameHandle& fh, vk::CommandBuffer cmd,
 							const Object& obj, uint32_t instanceIdx
 					) {
+						auto timer = perfTracker.startTimer("app.drawCmd");
 						cmd.bindVertexBuffers(0, obj.meshWrapper->vtxBuffer().handle, { 0 });
 						cmd.bindVertexBuffers(1, ctx.instances.devBuffer().handle, { 0 });
 						cmd.bindIndexBuffer(obj.meshWrapper->idxBuffer().handle,
 							0, Vertex::INDEX_TYPE);
 						fh.bindMeshDescriptorSet(cmd, obj.meshWrapper.descSet());
 						cmd.drawIndexed(obj.meshWrapper->idxCount(), 1, 0, 0, instanceIdx);
+						perfTracker.stopTimer(timer);
 					};
 					ctx.rpass.runRenderPass(frameUbo, { }, { }, {
 						std::function([&](RenderPass::FrameHandle& fh, vk::CommandBuffer cmd) {
 							assert(ctx.instances.size() == ctx.objects.size());
+							auto timer = perfTracker.startTimer("app.runSubpass0");
 							cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, ctx.mainPipeline.handle());
 							for(size_t i=0; i < ctx.objects.size(); ++i) {
 								draw(fh, cmd, ctx.objects[i], i); }
+							perfTracker.stopTimer(timer);
 						}),
 						std::function([&](RenderPass::FrameHandle& fh, vk::CommandBuffer cmd) {
 							assert(ctx.instances.size() == ctx.objects.size());
+							auto timer = perfTracker.startTimer("app.runSubpass1");
 							cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, ctx.outlinePipeline.handle());
 							for(size_t i=0; i < ctx.objects.size(); ++i) {
 								draw(fh, cmd, ctx.objects[i], i); }
+							perfTracker.stopTimer(timer);
 						})
 					});
 					{ // Framerate throttle
@@ -1030,10 +1052,33 @@ namespace vka2 {
 							util::sleep_s(sleepTime); }
 					}
 					++ctx.frameCounter;
+					perfTracker.stopTimer(frameTimer);
 				}
 			}
 		}
 		destroy_render_ctx(ctx);
+		#ifdef ENABLE_PERF_TRACKER
+		{
+			util::perfTracker |= perfTracker;
+			perfTracker.reset();
+			#define PRINT_TIME_(NM_) {\
+				double ns = util::perfTracker.ns(NM_); \
+				util::logGeneral() << "[Timer `" NM_ "`] " << (ns / 1000.0) << "us" << util::endl; \
+			}
+			PRINT_TIME_("app.frame")
+			PRINT_TIME_("app.assembleFrameUbo")
+			PRINT_TIME_("app.assembleInstance")
+			PRINT_TIME_("app.assembleInstances")
+			PRINT_TIME_("app.flushInstanceBuffer")
+			PRINT_TIME_("app.userInput")
+			PRINT_TIME_("app.drawCmd")
+			PRINT_TIME_("rpass.acquireImage")
+			PRINT_TIME_("rpass.recordCmd")
+			PRINT_TIME_("rpass.submitCmd")
+			PRINT_TIME_("rpass.present")
+			#undef PRINT_TIME
+		}
+		#endif
 	}
 
 }
