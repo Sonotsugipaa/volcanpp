@@ -753,8 +753,8 @@ namespace vka2 {
 
 	void RenderPass::waitIdle(uint64_t timeout) {
 		_rendering.skipNextFrame = true;
-		auto fenceVector = std::vector<vk::Fence>();
 		for(unsigned i=0; i < _data.swpchnImages.size(); ++i) {
+			util::logVkDebug() << "Waiting for image fence " << i << "..." << util::endl;
 			vk::Result result = _swapchain->application->device().waitForFences(
 				_data.swpchnImages[i].second.fenceImgAvailable, true, timeout);
 			if(result != vk::Result::eSuccess) {
@@ -839,12 +839,11 @@ namespace vka2 {
 						vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
 				}
 			} { // Transition the render target image to a drawable layout
-				vk::ImageMemoryBarrier barrier = mk_img_barrier(
-					img->first, colorSubresRange,
-					vk::ImageLayout::eUndefined, vk::AccessFlagBits::eNoneKHR,
-					vk::ImageLayout::ePresentSrcKHR, vk::AccessFlagBits::eNoneKHR);
+				auto barrier = mk_img_barrier(img->second.renderTarget.handle, colorSubresRange,
+					vk::ImageLayout::eUndefined,               vk::AccessFlagBits::eNoneKHR,
+					vk::ImageLayout::eColorAttachmentOptimal,  vk::AccessFlagBits::eColorAttachmentWrite);
 				renderCmd.pipelineBarrier(
-					vk::PipelineStageFlagBits::eVertexShader,
+					vk::PipelineStageFlagBits::eTopOfPipe,
 					vk::PipelineStageFlagBits::eColorAttachmentOutput,
 					vk::DependencyFlagBits(0), { }, { }, barrier);
 			} { // Begin the render pass
@@ -906,15 +905,15 @@ namespace vka2 {
 				blitCmd.begin(vk::CommandBufferBeginInfo(
 					vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
 				{ // Transition the src and dst image layouts
-					std::array<vk::ImageMemoryBarrier, 2> imgBarriers;
-					imgBarriers[0] = mk_img_barrier(img->second.renderTarget.handle, colorSubresRange,
-						vk::ImageLayout::eUndefined,           vk::AccessFlagBits::eNoneKHR,
-						vk::ImageLayout::eTransferSrcOptimal,  vk::AccessFlagBits::eTransferRead);
-					imgBarriers[1] = mk_img_barrier(img->first, colorSubresRange,
-						vk::ImageLayout::ePresentSrcKHR,       vk::AccessFlagBits::eNoneKHR,
-						vk::ImageLayout::eTransferDstOptimal,  vk::AccessFlagBits::eTransferWrite);
+					std::array<vk::ImageMemoryBarrier, 2> imgBarriers = {
+						mk_img_barrier(img->first, colorSubresRange,
+							vk::ImageLayout::eUndefined,           vk::AccessFlagBits::eNoneKHR,
+							vk::ImageLayout::eTransferDstOptimal,  vk::AccessFlagBits::eTransferWrite),
+						mk_img_barrier(img->second.renderTarget.handle, colorSubresRange,
+							vk::ImageLayout::eUndefined,           vk::AccessFlagBits::eNoneKHR,
+							vk::ImageLayout::eTransferSrcOptimal,  vk::AccessFlagBits::eTransferRead) };
 					blitCmd.pipelineBarrier(
-						vk::PipelineStageFlagBits::eTransfer,
+						vk::PipelineStageFlagBits::eColorAttachmentOutput,
 						vk::PipelineStageFlagBits::eTransfer,
 						vk::DependencyFlagBits(0), { }, { }, imgBarriers);
 				} { // Blit the image
@@ -939,9 +938,10 @@ namespace vka2 {
 						blit, options.viewParams.upscaleNearestFilter?
 							vk::Filter::eNearest : vk::Filter::eLinear);
 				} { // Transition the dst image layout to present
-					auto imgBarrier = mk_img_barrier(img->first, colorSubresRange,
-						vk::ImageLayout::eTransferDstOptimal,  vk::AccessFlagBits::eTransferWrite,
-						vk::ImageLayout::ePresentSrcKHR,       vk::AccessFlagBits::eNoneKHR);
+					auto imgBarrier = {
+						mk_img_barrier(img->first, colorSubresRange,
+							vk::ImageLayout::eTransferDstOptimal,  vk::AccessFlagBits::eTransferWrite,
+							vk::ImageLayout::ePresentSrcKHR,       vk::AccessFlagBits::eNoneKHR) };
 					blitCmd.pipelineBarrier(
 						vk::PipelineStageFlagBits::eTransfer,
 						vk::PipelineStageFlagBits::eTransfer,

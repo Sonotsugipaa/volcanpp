@@ -122,6 +122,7 @@ namespace util {
 			MK_CASE(vk::ImageUsageFlagBits::eTransferDst,            TRANSFER_DST)
 			MK_CASE(vk::ImageUsageFlagBits::eTransferSrc,            TRANSFER_SRC)
 			MK_CASE(vk::ImageUsageFlagBits::eTransientAttachment,    TRANSIENT_ATTACHMENT)
+			MK_CASE(vk::ImageUsageFlagBits::eInvocationMaskHUAWEI,   INVOCATION_MASK_HUAWEI)
 		}
 		return UNKNOWN_ENUM;
 	}
