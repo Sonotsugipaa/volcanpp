@@ -53,6 +53,23 @@ namespace {
 	using Keymap = std::map<keycode_t, KeyBinding>;
 
 
+	/** Returns a string representing the given number of nanoseconds,
+	 * in the form `(N+)\.(D{1,3})`. */
+	std::string nanosToMicrosStr(perf::PerfTracker::utime_t nanos) {
+		using utime_t = decltype(nanos);
+		std::string r;
+		r.reserve(2 * std::log10(std::max<utime_t>(1, nanos)));
+		utime_t intPart = nanos / 1000;
+		utime_t frcPart = nanos % 1000;
+		unsigned frcPadChars = 3 - std::ceil(std::log10(std::max<utime_t>(1, frcPart)));
+		r.append(std::to_string(intPart));
+		r.push_back('.');
+		for(unsigned i=0; i < frcPadChars; ++i) r.push_back('0');
+		r.append(std::to_string(frcPart));
+		return r;
+	}
+
+
 	struct DeviceVectorTraits {
 		vk::BufferUsageFlags bufferUsage;
 		vk::MemoryPropertyFlags vmaRequiredFlags;
@@ -984,7 +1001,7 @@ namespace vka2 {
 		util::TimeGateNs timer;
 		util::PerfTracker perfTracker;
 		perfTracker.movingAverageDecay =
-		util::perfTracker.movingAverageDecay = ctx.frameTiming.frameTime / 10.0f;
+		util::perfTracker.movingAverageDecay = ctx.frameTiming.frameTime / 30.0f;
 		double sleepTime = ctx.frameTiming.frameTime / MAX_SLEEPS_PER_FRAME;
 		{
 			{
@@ -1065,8 +1082,8 @@ namespace vka2 {
 			util::perfTracker |= perfTracker;
 			perfTracker.reset();
 			#define PRINT_TIME_(NM_) {\
-				double ns = util::perfTracker.ns(NM_); \
-				util::logGeneral() << "[Timer `" NM_ "`] " << (ns / 1000.0) << "us" << util::endl; \
+				util::logGeneral() << "[Timer `" NM_ "`] " \
+					<< nanosToMicrosStr(util::perfTracker.ns(NM_)) << "us" << util::endl; \
 			}
 			PRINT_TIME_("app.frame")
 			PRINT_TIME_("app.assembleFrameUbo")
