@@ -54,8 +54,8 @@ namespace vka2 {
 
 		/** Defines the order in which present modes are
 		 * attempted to be used, from best to worst. */
-		constexpr std::array<vk::PresentModeKHR, 4> PRESENT_MODE_PREFERENCE = {
-			// vk::PresentModeKHR::eFifo, // This is the fallback mode; it must be either at the top or absent
+		constexpr std::array<vk::PresentModeKHR, 5> PRESENT_MODE_PREFERENCE = {
+			vk::PresentModeKHR::eFifo, // This is the fallback mode; it must be either at the top or absent
 			vk::PresentModeKHR::eSharedDemandRefresh,
 			vk::PresentModeKHR::eSharedContinuousRefresh,
 			vk::PresentModeKHR::eMailbox,
