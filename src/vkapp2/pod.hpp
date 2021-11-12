@@ -120,6 +120,8 @@ namespace vka2 {
 		template<> constexpr unsigned align<bool>      =  1;
 		template<> constexpr unsigned align<int32_t>   =  4;
 		template<> constexpr unsigned align<uint32_t>  =  4;
+		// template<> constexpr unsigned align<int16_t>   = NA; // 16 bit values do not exist in GLSL
+		// template<> constexpr unsigned align<uint16_t>  = NA; // 16 bit values do not exist in GLSL
 		template<> constexpr unsigned align<float>     =  4;
 		template<> constexpr unsigned align<double>    =  8;
 		template<> constexpr unsigned align<glm::vec2> =  8;
@@ -171,7 +173,7 @@ namespace vka2 {
 			SPIRV_ALIGNED(glm::vec4)  pointLight; // Position XYZ, intensity
 			SPIRV_ALIGNED(glm::vec3)  lightDirection;
 			SPIRV_ALIGNED(float)      rnd; // Different for every frame
-			SPIRV_ALIGNED(uint32_t)   shaderSelector;
+			SPIRV_ALIGNED(uint32_t)   pack0; // shaderSelector : 0xff00
 		};
 
 	}

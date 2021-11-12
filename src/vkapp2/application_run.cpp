@@ -975,7 +975,7 @@ namespace {
 		dst.viewPos = ctx.position;
 		dst.pointLight = ctx.pointLight;
 		dst.lightDirection = ctx.lightDirection;
-		dst.shaderSelector = ctx.ctrlCtx.shaderSelector;
+		dst.pack0 = ctx.ctrlCtx.shaderSelector << 16;
 		dst.rnd = ctx.rngDistr(ctx.rng);
 	}
 
