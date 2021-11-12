@@ -49,7 +49,7 @@ layout(set = 2, binding = 0) uniform FrameUbo {
 	vec4 pointLight;
 	vec3 lightDirection;
 	float rnd;
-	uint shaderSelector;
+	uint pack0; // shaderSelector : 0xff00
 } frameUbo;
 
 
@@ -93,7 +93,7 @@ void main_1() {
 
 
 void main() {
-	switch(frameUbo.shaderSelector) {
+	switch(frameUbo.pack0 >> 16) {
 		case 0:
 		case 1:  main_0();  break;
 		case 2:  main_1();  break;

@@ -30,8 +30,8 @@
 #include "vkapp2/runtime.hpp"
 #include "vkapp2/pod.hpp"
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_vulkan.h>
 
 #include <vkapp2/dyndescriptorpool.hpp>
 
@@ -495,7 +495,7 @@ namespace vka2 {
 			vk::Device dev;
 			VmaAllocator alloc;
 			CommandPool transferCmdPool, graphicsCmdPool;
-			GLFWwindow* glfwWin;
+			SDL_Window* sdlWin;
 			vk::SurfaceKHR surface;
 			vk::SurfaceCapabilitiesKHR surfaceCapabs;
 			vk::SurfaceFormatKHR surfaceFmt;
@@ -513,8 +513,8 @@ namespace vka2 {
 		void destroy();
 
 	private:
-		void _create_window(bool fullscreen, const vk::Extent2D&);
-		void _destroy_window();
+		void _create_surface();
+		void _destroy_surface();
 
 		void _create_swapchain();
 		void _destroy_swapchain(bool keep_cached);
@@ -581,7 +581,7 @@ namespace vka2 {
 		GETTER_VAL      (_data.presentQueue,    presentQueue           )
 		GETTER_REF      (_data.transferCmdPool, transferCommandPool    )
 		GETTER_REF      (_data.graphicsCmdPool, graphicsCommandPool    )
-		GETTER_REF      (_data.glfwWin,         glfwWindow             )
+		GETTER_REF      (_data.sdlWin,          sdlWindow              )
 		GETTER_REF      (_data.swapchain,       swapchain              )
 		GETTER_VAL      (_data.surface,         surface                )
 		GETTER_REF_CONST(_data.surfaceCapabs,   surfaceCapabilities    )

@@ -49,7 +49,7 @@ layout(set = 2, binding = 0) uniform FrameUbo {
 	vec4 pointLight;
 	vec3 lightDirection;
 	float rnd;
-	uint shaderSelector;
+	uint pack0; // shaderSelector : 0xff00
 } frameUbo;
 
 layout(set = 1, binding = 1) uniform sampler2D tex_dfsSampler;
@@ -380,7 +380,7 @@ void main_6() {
  * 5: Diffuse and specular lighting
  * 6: Diffuse and specular lighting with cel shading and outline */
 void main() {
-	switch(frameUbo.shaderSelector) {
+	switch(frameUbo.pack0 >> 16) {
 		case 0:  main_0();  break;
 		case 1:  main_1();  break;
 		case 2:  main_2();  break;

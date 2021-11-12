@@ -50,7 +50,7 @@ namespace {
 		};
 
 		constexpr std::array<const char*, 1> deviceExtensions = {
-			VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+			VK_KHR_SWAPCHAIN_EXTENSION_NAME
 			// "VK_KHR_portability_subset" // Can be used by overridden layer settings, notably by VK_LAYER_LUNARG_device_simulation
 			// "wideLines" // Promoted to 1.2
 			// "VK_EXT_descriptor_indexing" // Also promoted to 1.2
@@ -79,13 +79,23 @@ namespace {
 	} ());
 
 
-	vk::Instance mk_vk_instance(const vk::ApplicationInfo& appInfo) {
+	vk::Instance mk_vk_instance(const vk::ApplicationInfo& appInfo, SDL_Window* window) {
 		std::vector<const char*> actualExtensions;
 		actualExtensions.insert(actualExtensions.end(),
 			instanceExtensions.begin(), instanceExtensions.end());
 		{
 			uint32_t extCount;
-			const char** ptr = glfwGetRequiredInstanceExtensions(&extCount);
+			const char** ptr;
+			#ifdef NDEBUG
+				SDL_Vulkan_GetInstanceExtensions(window, &extCount, nullptr);
+				ptr = new const char*[extCount];
+				SDL_Vulkan_GetInstanceExtensions(window, &extCount, ptr);
+			#else
+				assert(SDL_TRUE == SDL_Vulkan_GetInstanceExtensions(window, &extCount, nullptr));
+				ptr = new const char*[extCount];
+				assert(SDL_TRUE == SDL_Vulkan_GetInstanceExtensions(window, &extCount, ptr));
+			#endif
+
 			for(uint32_t i=0; i < extCount; ++i) {
 				actualExtensions.push_back(ptr[i]); }
 		}
@@ -252,54 +262,72 @@ namespace {
 	}
 
 
-	GLFWwindow* mk_window(bool fullscreen, vk::Extent2D ext) {
-		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);  // Do not create the OpenGL context
-		glfwWindowHint(GLFW_RESIZABLE, true);
-		GLFWmonitor* mon = nullptr;
-		bool zeroSize = ext.width * ext.height == 0;
-		if(fullscreen) {
-			mon = glfwGetPrimaryMonitor();
-			if(mon == nullptr) {
-				const char* err;
-				glfwGetError(&err);
-				throw std::runtime_error(
-					"failed to acquire the primary monitor with GLFW ("s + err + ")"s);
-			}
-		}
-		if(zeroSize) {
-			int widthI, heightI;
+	SDL_Window* mk_window(bool fullscreen, std::array<uint32_t, 2> ext) {
+		// glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);  // Do not create the OpenGL context
+		// glfwWindowHint(GLFW_RESIZABLE, true);
+		// GLFWmonitor* mon = nullptr;
+		// if(fullscreen) {
+		// 	mon = glfwGetPrimaryMonitor();
+		// 	if(mon == nullptr) {
+		// 		const char* err;
+		// 		glfwGetError(&err);
+		// 		throw std::runtime_error(
+		// 			"failed to acquire the primary monitor with GLFW ("s + err + ")"s);
+		// 	}
+		// }
+
+		if(ext[0] * ext[1] == 0) {
+			SDL_Rect displayExt;
 			if(! fullscreen) {
 				throw std::logic_error("window area cannot be 0 if not in fullscreen mode"s); }
-			glfwGetMonitorWorkarea(mon, nullptr, nullptr, &widthI, &heightI);
-			ext = vk::Extent2D(widthI, heightI);
+
+			if(0 != SDL_GetDisplayBounds(0, &displayExt)) {
+				throw std::runtime_error(
+					std::string("Failed to get the primary display size: ") +
+					SDL_GetError() );
+			}
+
+			assert(displayExt.x == 0);
+			assert(displayExt.y == 0);
+			ext[0] = displayExt.w;
+			ext[1] = displayExt.h;
 			util::logVkDebug() << "Fullscreen window extent automatically set to "
-				<< widthI << 'x' << heightI << util::endl;
+				<< displayExt.w << 'x' << displayExt.h << util::endl;
 		}
-		if((ext.width + ext.height) * 2 > RESOLUTION_HARD_LIMIT) {
+		if((ext[0] + ext[1]) * 2 > RESOLUTION_HARD_LIMIT) {
 			throw std::logic_error("window perimeter cannot be higher than "s +
 				std::to_string(RESOLUTION_HARD_LIMIT));
 		}
-		GLFWwindow* r = glfwCreateWindow(
-			ext.width, ext.height,
-			WINDOW_TITLE, mon, nullptr);
+
+		// sdlwindow* r = glfwCreateWindow(
+		// 	ext[0], ext[1],
+		// 	WINDOW_TITLE, mon, nullptr);
+		SDL_Window* r = SDL_CreateWindow(
+			WINDOW_TITLE,
+			SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+			ext[0], ext[1], (
+				SDL_WINDOW_SHOWN |
+				SDL_WINDOW_VULKAN |
+				SDL_WINDOW_RESIZABLE |
+				(fullscreen * SDL_WINDOW_FULLSCREEN)
+			) );
+
 		if(r == nullptr) {
-			const char* err;
-			glfwGetError(&err);
+			const char* err = SDL_GetError();
 			throw std::runtime_error(
-				"failed to create a GLFW window ("s + err + ")"s);
+				"failed to create a SDL window ("s + err + ")"s);
 		}
 		return r;
 	}
 
 
-	vk::SurfaceKHR mk_window_surface(vk::Instance instance, GLFWwindow* window) {
+	vk::SurfaceKHR mk_window_surface(vk::Instance instance, SDL_Window* window) {
 		VkSurfaceKHR cSurface;
-		VkResult result = glfwCreateWindowSurface(instance, window, nullptr, &cSurface);
-		if(result != VK_SUCCESS) {
-			const char* err;  glfwGetError(&err);
+		SDL_bool result = SDL_Vulkan_CreateSurface(window, instance, &cSurface);
+		if(result != SDL_TRUE) {
+			const char* err = SDL_GetError();
 			throw std::runtime_error(formatVkErrorMsg(
-				"could not create a window surface",
-				(err == nullptr)? enum_str(result) + ": "s : err));
+				"could not create a window surface", err ));
 		}
 		return cSurface;
 	}
@@ -466,17 +494,22 @@ namespace vka2 {
 	Application::Application():
 			_cached_swapchain(nullptr)
 	{
-		if(! glfwInit()) {
-			const char* err;
-			glfwGetError(&err);
-			throw std::runtime_error(formatVkErrorMsg("failed to initialize GLFW", err));
-		}
+		SDL_Init(SDL_INIT_VIDEO);
+		SDL_Vulkan_LoadLibrary(nullptr);
+
 		_data.options = Options::fromFile(CONFIG_FILE);
+
+		{
+			const auto& wParams = _data.options.windowParams;
+			auto ext = wParams.initFullscreen? wParams.fullscreenExtent : wParams.windowExtent;
+			_data.sdlWin = mk_window(wParams.initFullscreen, ext);  util::alloc_tracker.alloc("Application:_data:sdlWin");
+		}
+
 		_vk_appinfo = vk::ApplicationInfo(
 			"vkapp2", VK_MAKE_VERSION(VKA2_APP_VERSION[0], VKA2_APP_VERSION[1], VKA2_APP_VERSION[2]),
 			"vkapp_engine", VK_MAKE_VERSION(VKA2_ENGINE_VERSION[0], VKA2_ENGINE_VERSION[1], VKA2_ENGINE_VERSION[2]),
 			VK_API_VERSION);
-		_vk_instance = mk_vk_instance(_vk_appinfo);
+		_vk_instance = mk_vk_instance(_vk_appinfo, _data.sdlWin);
 		_data.pDev = get_ph_dev(_vk_instance, &_data.pDevFeatures);
 		_data.pDevFeatures = _data.pDev.getFeatures();
 		_data.qFamIdx = find_qfam_idxs(_data.pDev);
@@ -486,40 +519,35 @@ namespace vka2 {
 		_data.transferCmdPool = CommandPool(_data.dev, _data.qFamIdx.transfer, true);  util::alloc_tracker.alloc("Application:_data:transferCmdPool");
 		_data.graphicsCmdPool = CommandPool(_data.dev, _data.qFamIdx.graphics, true);  util::alloc_tracker.alloc("Application:_data:graphicsCmdPool");
 		get_runtime_params(_data.pDev, false, _data.options, &_data.runtime);
-		{
-			const auto& wParams = _data.options.windowParams;
-			auto ext = _data.runtime.fullscreen? wParams.fullscreenExtent : wParams.windowExtent;
-			_create_window(_data.runtime.fullscreen, vk::Extent2D(ext[0], ext[1]));
-		}
+		_create_surface();
 		util::alloc_tracker.alloc("Application");
 	}
 
 
 	void Application::destroy() {
-		_destroy_window();
+		_destroy_surface();
 		_data.graphicsCmdPool.destroy();  util::alloc_tracker.dealloc("Application:_data:graphicsCmdPool");
 		_data.transferCmdPool.destroy();  util::alloc_tracker.dealloc("Application:_data:transferCmdPool");
 		vmaDestroyAllocator(_data.alloc);  util::alloc_tracker.dealloc("Application:_data:alloc");
 		_data.dev.destroy();  util::alloc_tracker.dealloc("Application:_data:dev");
 		_vk_instance.destroy();
-		glfwTerminate();
+		SDL_DestroyWindow(_data.sdlWin);  util::alloc_tracker.dealloc("Application:_data:sdlWin");
+		SDL_Quit();
 		util::alloc_tracker.dealloc("Application");
 	}
 
 
-	void Application::_create_window(bool fullscreen, const vk::Extent2D& ext) {
-		_data.glfwWin = mk_window(fullscreen, ext);  util::alloc_tracker.alloc("Application:_data:glfwWin");
-		_data.surface = mk_window_surface(_vk_instance, _data.glfwWin);  util::alloc_tracker.alloc("Application:_data:surface");
+	void Application::_create_surface() {
+		_data.surface = mk_window_surface(_vk_instance, _data.sdlWin);  util::alloc_tracker.alloc("Application:_data:surface");
 		std::tie(_data.qFamIdxPresent, _data.presentQueue) =
 			find_present_idx(_data.pDev, _data.qFamIdx, _data.queues, _data.surface);
 		_create_swapchain();
 	}
 
 
-	void Application::_destroy_window() {
+	void Application::_destroy_surface() {
 		_destroy_swapchain(false);
 		_vk_instance.destroySurfaceKHR(_data.surface);  util::alloc_tracker.dealloc("Application:_data:surface");
-		glfwDestroyWindow(_data.glfwWin);  util::alloc_tracker.dealloc("Application:_data:glfwWin");
 	}
 
 
@@ -568,9 +596,9 @@ namespace vka2 {
 
 	void Application::setWindowMode(bool value, const vk::Extent2D& ext) {
 		if(_data.runtime.fullscreen != value) {
-			_destroy_window();
+			_destroy_surface();
 			_data.runtime.fullscreen = value;
-			_create_window(value, ext);
+			_create_surface();
 		}
 	}
 

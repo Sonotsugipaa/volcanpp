@@ -44,13 +44,8 @@ using namespace std::string_literals;
 
 namespace {
 
-	/* Negative keycodes are interpreted as negative mouse codes,
-	 * so -GLFW_MOUSE_BUTTON_LEFT == keycode(-GLFW_MOUSE_BUTTON_LEFT); *
-	 * this is clearly malpractice and possibly harmful, and should be *
-	 * discarded for a new project. But hey, this was a long day for me. */
-	using keycode_t = int;
-	using KeyBinding = std::function<void (bool isPressed, unsigned modifiers)>;
-	using Keymap = std::map<keycode_t, KeyBinding>;
+	using KeyBinding = std::function<void (bool isPressed, uint16_t modifiers)>;
+	using Keymap = std::map<SDL_Keycode, KeyBinding>;
 
 
 	/** Returns a string representing the given number of nanoseconds,
@@ -294,17 +289,15 @@ namespace {
 		glm::vec3 fwdMoveVector; // Only stores positive XYZ input
 		glm::vec3 bcwMoveVector; // Only stores negative XYZ input
 		glm::vec2 rotate;
-		glm::dvec2 lastCursorPos;
 		unsigned shaderSelector;
-		bool dragView;
-		bool speedMod;
-		bool toggleFullscreen;
-		bool createObj;
-		bool movePointLightMod;
+		bool speedMod : 1;
+		bool toggleFullscreen : 1;
+		bool createObj : 1;
+		bool movePointLightMod : 1;
 	};
 
 
-	struct GlfwContext {
+	struct SdlContext {
 		Keymap* keymap;
 		Application* app;
 		CtrlSchemeContext* ctrlCtx;
@@ -373,7 +366,7 @@ namespace {
 	struct RenderContext {
 		FrameTiming frameTiming;
 		CtrlSchemeContext ctrlCtx;
-		GlfwContext glfwCtx;
+		SdlContext sdlCtx;
 		Keymap keymap;
 		RenderPass rpass;
 		Pipeline mainPipeline, outlinePipeline;
@@ -464,76 +457,85 @@ namespace {
 	}
 
 
+	void poll_events(RenderContext& ctx, bool& shouldCloseDst) {
+		SDL_Event event;
+		while(SDL_PollEvent(&event)) {
+			switch(event.type) {
+				case SDL_QUIT: {
+					shouldCloseDst = true;
+				} break;
+				case SDL_KEYUP: [[fallthrough]];
+				case SDL_KEYDOWN: {
+					auto state = event.key.state;
+					if(state == SDL_PRESSED || state == SDL_RELEASED) {
+						Keymap& keymap = *ctx.sdlCtx.keymap;
+						auto found = keymap.find(event.key.keysym.sym);
+						if(found != keymap.end()) {
+							found->second(state == SDL_PRESSED, event.key.keysym.mod); }
+					}
+				} break;
+			}
+		}
+	}
+
+
 	/** Key bindings will depend on the application AND the control scheme
 	 * context, so they must be must stay alive as long as these key bindings
-	 * can be used by GLFW. */
-	Keymap mk_key_bindings(GLFWwindow*& win, CtrlSchemeContext* ctrlCtx) {
+	 * can be used by SDL. */
+	Keymap mk_key_bindings(SDL_Window*& win, CtrlSchemeContext* ctrlCtx) {
 		Keymap km;
 
 		#define MAP_KEY(_K) km[_K] = [ctrlCtx, &win]([[maybe_unused]] bool pressed, [[maybe_unused]] unsigned mod)
 
-		MAP_KEY(GLFW_KEY_S) { ctrlCtx->fwdMoveVector.z = pressed? 1.0f : 0.0f; };
-		MAP_KEY(GLFW_KEY_W) { ctrlCtx->bcwMoveVector.z = pressed? 1.0f : 0.0f; };
-		MAP_KEY(GLFW_KEY_D) { ctrlCtx->fwdMoveVector.x = pressed? 1.0f : 0.0f; };
-		MAP_KEY(GLFW_KEY_A) { ctrlCtx->bcwMoveVector.x = pressed? 1.0f : 0.0f; };
-		MAP_KEY(GLFW_KEY_R) { ctrlCtx->bcwMoveVector.y = pressed? 1.0f : 0.0f; };
-		MAP_KEY(GLFW_KEY_F) { ctrlCtx->fwdMoveVector.y = pressed? 1.0f : 0.0f; };
-		MAP_KEY(GLFW_KEY_N) { if(!pressed) ctrlCtx->createObj = true; };
-		MAP_KEY(GLFW_KEY_C) { std::quick_exit(1); };
-		MAP_KEY(GLFW_KEY_LEFT_CONTROL) { ctrlCtx->movePointLightMod = pressed; };
+		MAP_KEY(SDLK_s) { ctrlCtx->fwdMoveVector.z = pressed? 1.0f : 0.0f; };
+		MAP_KEY(SDLK_w) { ctrlCtx->bcwMoveVector.z = pressed? 1.0f : 0.0f; };
+		MAP_KEY(SDLK_d) { ctrlCtx->fwdMoveVector.x = pressed? 1.0f : 0.0f; };
+		MAP_KEY(SDLK_a) { ctrlCtx->bcwMoveVector.x = pressed? 1.0f : 0.0f; };
+		MAP_KEY(SDLK_r) { ctrlCtx->bcwMoveVector.y = pressed? 1.0f : 0.0f; };
+		MAP_KEY(SDLK_f) { ctrlCtx->fwdMoveVector.y = pressed? 1.0f : 0.0f; };
+		MAP_KEY(SDLK_n) { if(!pressed) ctrlCtx->createObj = true; };
+		MAP_KEY(SDLK_LCTRL) { ctrlCtx->movePointLightMod = pressed; };
 
-		MAP_KEY(GLFW_KEY_ENTER) {
-			if((! pressed) && (mod & GLFW_MOD_ALT)) {
+		#ifndef NDEBUG
+			MAP_KEY(SDLK_c) { std::quick_exit(1); };
+		#endif
+
+		MAP_KEY(SDLK_RETURN) {
+			if((! pressed) && (mod & KMOD_ALT)) {
 				ctrlCtx->toggleFullscreen = true; }
 		};
 
-		MAP_KEY(GLFW_KEY_RIGHT) { ctrlCtx->rotate.x = pressed? +1.0f : 0.0f; };
-		MAP_KEY(GLFW_KEY_LEFT)  { ctrlCtx->rotate.x = pressed? -1.0f : 0.0f; };
-		MAP_KEY(GLFW_KEY_UP)    { ctrlCtx->rotate.y = pressed? +1.0f : 0.0f; };
-		MAP_KEY(GLFW_KEY_DOWN)  { ctrlCtx->rotate.y = pressed? -1.0f : 0.0f; };
+		MAP_KEY(SDLK_RIGHT) { ctrlCtx->rotate.x = pressed? +1.0f : 0.0f; };
+		MAP_KEY(SDLK_LEFT)  { ctrlCtx->rotate.x = pressed? -1.0f : 0.0f; };
+		MAP_KEY(SDLK_UP)    { ctrlCtx->rotate.y = pressed? +1.0f : 0.0f; };
+		MAP_KEY(SDLK_DOWN)  { ctrlCtx->rotate.y = pressed? -1.0f : 0.0f; };
 
-		MAP_KEY(GLFW_KEY_1) { if(!pressed) ctrlCtx->shaderSelector = 0; };
-		MAP_KEY(GLFW_KEY_2) { if(!pressed) ctrlCtx->shaderSelector = 1; };
-		MAP_KEY(GLFW_KEY_3) { if(!pressed) ctrlCtx->shaderSelector = 2; };
-		MAP_KEY(GLFW_KEY_4) { if(!pressed) ctrlCtx->shaderSelector = 3; };
-		MAP_KEY(GLFW_KEY_5) { if(!pressed) ctrlCtx->shaderSelector = 4; };
-		MAP_KEY(GLFW_KEY_6) { if(!pressed) ctrlCtx->shaderSelector = 5; };
-		MAP_KEY(GLFW_KEY_7) { if(!pressed) ctrlCtx->shaderSelector = 6; };
+		MAP_KEY(SDLK_1) { if(!pressed) ctrlCtx->shaderSelector = 0; };
+		MAP_KEY(SDLK_2) { if(!pressed) ctrlCtx->shaderSelector = 1; };
+		MAP_KEY(SDLK_3) { if(!pressed) ctrlCtx->shaderSelector = 2; };
+		MAP_KEY(SDLK_4) { if(!pressed) ctrlCtx->shaderSelector = 3; };
+		MAP_KEY(SDLK_5) { if(!pressed) ctrlCtx->shaderSelector = 4; };
+		MAP_KEY(SDLK_6) { if(!pressed) ctrlCtx->shaderSelector = 5; };
+		MAP_KEY(SDLK_7) { if(!pressed) ctrlCtx->shaderSelector = 6; };
 
-		MAP_KEY(GLFW_KEY_LEFT_SHIFT) { ctrlCtx->speedMod = pressed; };
+		MAP_KEY(SDLK_LSHIFT) { ctrlCtx->speedMod = pressed; };
 
-		MAP_KEY(GLFW_KEY_ESCAPE) {
-			glfwSetWindowShouldClose(win, pressed); };
-
-		km[GLFW_MOUSE_BUTTON_LEFT] = [ctrlCtx, &win](bool pressed, unsigned) {
-			ctrlCtx->dragView = pressed;
-			glfwGetCursorPos(win, &ctrlCtx->lastCursorPos.x, &ctrlCtx->lastCursorPos.x);
+		MAP_KEY(SDLK_ESCAPE) {
+			SDL_Event ev;
+			ev.quit.type = SDL_QUIT;
+			{
+				auto result = SDL_PushEvent(&ev);
+				if(result != 1) {
+					throw std::runtime_error(
+						std::string("failed to push a SDL_QuitEvent: ") +
+						SDL_GetError() );
+				}
+			}
 		};
 
 		#undef MAP_KEY
 
 		return km;
-	}
-
-
-	void set_user_controls(RenderContext& ctx, GLFWwindow* win) {
-		glfwSetWindowUserPointer(win, &ctx.glfwCtx);
-		glfwSetKeyCallback(win, [](GLFWwindow* w, int k, int, int act, int mods) {
-			if(act == GLFW_PRESS || act == GLFW_RELEASE) {
-				Keymap& keymap = *reinterpret_cast<GlfwContext*>(
-					glfwGetWindowUserPointer(w))->keymap;
-				auto found = keymap.find(k);
-				if(found != keymap.end()) {
-					found->second(act == GLFW_PRESS, mods); }
-			}
-		});
-		glfwSetMouseButtonCallback(win, [](GLFWwindow* w, int b, int act, int mods) {
-			Keymap& keymap = *reinterpret_cast<GlfwContext*>(
-				glfwGetWindowUserPointer(w))->keymap;
-			auto found = keymap.find(-b);
-			if(found != keymap.end()) {
-				found->second(act == GLFW_PRESS, mods); }
-		});
 	}
 
 
@@ -543,11 +545,11 @@ namespace {
 			.frameTime = 1.0f / opts.viewParams.frameFrequencyS };
 		dst.ctrlCtx = {
 			.fwdMoveVector = { }, .bcwMoveVector = { },
-			.rotate = { }, .lastCursorPos = { },
-			.shaderSelector = 0, .dragView = false, .speedMod = false,
+			.rotate = { },
+			.shaderSelector = 0, .speedMod = false,
 			.toggleFullscreen = false, .createObj = false,
 			.movePointLightMod = false };
-		dst.keymap = mk_key_bindings(app.glfwWindow(), &dst.ctrlCtx);
+		dst.keymap = mk_key_bindings(app.sdlWindow(), &dst.ctrlCtx);
 		dst.rngDistr = std::uniform_real_distribution<float>(0.0f, 1.0f);
 		dst.turnSpeedKey = opts.viewParams.viewTurnSpeedKey;
 		dst.turnSpeedKeyMod = opts.viewParams.viewTurnSpeedKeyMod;
@@ -654,7 +656,7 @@ namespace {
 				onSwpchnOod);
 			buildPipelines();
 		} { // Assign and adjust everything that depends on the render pass
-			dst.glfwCtx = {
+			dst.sdlCtx = {
 				.keymap = &dst.keymap, .app = &app,
 				.ctrlCtx = &dst.ctrlCtx, .frameTiming = &dst.frameTiming };
 
@@ -665,7 +667,6 @@ namespace {
 			}
 			dst.dPoolOutOfDate = true;
 
-			set_user_controls(dst, app.glfwWindow());
 			set_static_ubo(dst.rpass, opts);
 		}
 	}
@@ -975,7 +976,7 @@ namespace {
 		dst.viewPos = ctx.position;
 		dst.pointLight = ctx.pointLight;
 		dst.lightDirection = ctx.lightDirection;
-		dst.shaderSelector = ctx.ctrlCtx.shaderSelector;
+		dst.pack0 = ctx.ctrlCtx.shaderSelector << 16;
 		dst.rnd = ctx.rngDistr(ctx.rng);
 	}
 
@@ -1003,6 +1004,7 @@ namespace vka2 {
 		perfTracker.movingAverageDecay =
 		util::perfTracker.movingAverageDecay = ctx.frameTiming.frameTime / 30.0f;
 		double sleepTime = ctx.frameTiming.frameTime / MAX_SLEEPS_PER_FRAME;
+		bool shouldClose = false;
 		{
 			{
 				{
@@ -1011,13 +1013,14 @@ namespace vka2 {
 						vtxCount += obj.meshWrapper->idxCount(); }
 					util::logDebug() << "Rendering " << vtxCount << " vertices each frame" << util::endl;
 				}
-				while(! glfwWindowShouldClose(_data.glfwWin)) {
+				while(! shouldClose) {
 					auto frameTimer = perfTracker.startTimer("app.frame");
+
 					mat4 orientationMat = mat4(1.0f);
-					glfwPollEvents();
 					perfTracker.measure("app.userInput", [&]() {
 						process_input(ctx, orientationMat);
 					});
+
 					if(try_change_fullscreen(*this, opts, ctx)) {
 						continue; }
 					ubo::Frame frameUbo;
@@ -1031,6 +1034,7 @@ namespace vka2 {
 						ctx.instances.flush();
 					});
 					sync_desc_sets(ctx);
+
 					auto draw = [&ctx, &perfTracker](
 							RenderPass::FrameHandle& fh, vk::CommandBuffer cmd,
 							const Object& obj, uint32_t instanceIdx
@@ -1062,6 +1066,7 @@ namespace vka2 {
 							perfTracker.stopTimer(timer);
 						})
 					});
+
 					{ // Framerate throttle
 						auto timeMul = decltype(timer)::period_t::den / decltype(timer)::period_t::num;
 						decltype(timer)::precision_t frameTimeUnits = ctx.frameTiming.frameTime * timeMul;
@@ -1073,6 +1078,8 @@ namespace vka2 {
 					}
 					++ctx.frameCounter;
 					perfTracker.stopTimer(frameTimer);
+
+					poll_events(ctx, shouldClose);
 				}
 			}
 		}
